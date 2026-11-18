@@ -4,9 +4,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.util.ReflectionTestUtils;
 
 class EncryptionServiceTest {
@@ -15,11 +19,7 @@ class EncryptionServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new EncryptionService();
-        ReflectionTestUtils.setField(
-                service,
-                "secretKey",
-                "1234567890123456");
+        service = new EncryptionService("1234567890123456");
     }
 
     @Test
@@ -86,7 +86,7 @@ class EncryptionServiceTest {
     void rejectsCiphertextEncryptedWithDifferentKey() {
         String encrypted = service.encrypt("sensitive-secret");
 
-        EncryptionService anotherService = new EncryptionService();
+        EncryptionService anotherService = new EncryptionService("abcdefghijklmnop");
         ReflectionTestUtils.setField(
                 anotherService,
                 "secretKey",
@@ -95,5 +95,16 @@ class EncryptionServiceTest {
         assertThrows(
                 RuntimeException.class,
                 () -> anotherService.decrypt(encrypted));
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {"   "})
+    void noSeCreaSinClave(String clave) {
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
+                () -> new EncryptionService(clave));
+
+        assertTrue(error.getMessage().contains("AES_KEY"));
     }
 }
