@@ -1,6 +1,7 @@
 package es.uclm.esibuy.security.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -106,5 +107,24 @@ class EncryptionServiceTest {
                 () -> new EncryptionService(clave));
 
         assertTrue(error.getMessage().contains("AES_KEY"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"corta", "123456789012345", "12345678901234567", "123456789012345678901234567890123"})
+    void noSeCreaConUnaClaveDeLongitudIncorrecta(String clave) {
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
+                () -> new EncryptionService(clave));
+
+        assertTrue(error.getMessage().contains("AES_KEY"));
+        assertFalse(error.getMessage().contains(clave));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {16, 24, 32})
+    void aceptaClavesDe16_24o32Caracteres(int longitud) {
+        EncryptionService conClave = new EncryptionService("k".repeat(longitud));
+
+        assertEquals("secreto", conClave.decrypt(conClave.encrypt("secreto")));
     }
 }
