@@ -1,13 +1,17 @@
 package es.uclm.esibuy.security.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class EncryptionServiceTest {
 
@@ -15,11 +19,7 @@ class EncryptionServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new EncryptionService();
-        ReflectionTestUtils.setField(
-                service,
-                "secretKey",
-                "1234567890123456");
+        service = new EncryptionService("1234567890123456");
     }
 
     @Test
@@ -86,14 +86,40 @@ class EncryptionServiceTest {
     void rejectsCiphertextEncryptedWithDifferentKey() {
         String encrypted = service.encrypt("sensitive-secret");
 
-        EncryptionService anotherService = new EncryptionService();
-        ReflectionTestUtils.setField(
-                anotherService,
-                "secretKey",
-                "abcdefghijklmnop");
+        EncryptionService anotherService = new EncryptionService("abcdefghijklmnop");
 
         assertThrows(
                 RuntimeException.class,
                 () -> anotherService.decrypt(encrypted));
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {"   "})
+    void rejectsMissingKey(String key) {
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
+                () -> new EncryptionService(key));
+
+        assertTrue(error.getMessage().contains("AES_KEY"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"short", "123456789012345", "12345678901234567", "123456789012345678901234567890123"})
+    void rejectsKeyWithWrongLength(String key) {
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
+                () -> new EncryptionService(key));
+
+        assertTrue(error.getMessage().contains("AES_KEY"));
+        assertFalse(error.getMessage().contains(key));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {16, 24, 32})
+    void acceptsKeysOf16_24Or32Characters(int length) {
+        EncryptionService serviceWithKey = new EncryptionService("k".repeat(length));
+
+        assertEquals("secret", serviceWithKey.decrypt(serviceWithKey.encrypt("secret")));
     }
 }
