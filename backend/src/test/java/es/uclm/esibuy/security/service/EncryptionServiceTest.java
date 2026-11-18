@@ -12,7 +12,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.springframework.test.util.ReflectionTestUtils;
 
 class EncryptionServiceTest {
 
@@ -88,10 +87,6 @@ class EncryptionServiceTest {
         String encrypted = service.encrypt("sensitive-secret");
 
         EncryptionService anotherService = new EncryptionService("abcdefghijklmnop");
-        ReflectionTestUtils.setField(
-                anotherService,
-                "secretKey",
-                "abcdefghijklmnop");
 
         assertThrows(
                 RuntimeException.class,
@@ -101,30 +96,30 @@ class EncryptionServiceTest {
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = {"   "})
-    void noSeCreaSinClave(String clave) {
+    void rejectsMissingKey(String key) {
         IllegalArgumentException error = assertThrows(
                 IllegalArgumentException.class,
-                () -> new EncryptionService(clave));
+                () -> new EncryptionService(key));
 
         assertTrue(error.getMessage().contains("AES_KEY"));
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"corta", "123456789012345", "12345678901234567", "123456789012345678901234567890123"})
-    void noSeCreaConUnaClaveDeLongitudIncorrecta(String clave) {
+    @ValueSource(strings = {"short", "123456789012345", "12345678901234567", "123456789012345678901234567890123"})
+    void rejectsKeyWithWrongLength(String key) {
         IllegalArgumentException error = assertThrows(
                 IllegalArgumentException.class,
-                () -> new EncryptionService(clave));
+                () -> new EncryptionService(key));
 
         assertTrue(error.getMessage().contains("AES_KEY"));
-        assertFalse(error.getMessage().contains(clave));
+        assertFalse(error.getMessage().contains(key));
     }
 
     @ParameterizedTest
     @ValueSource(ints = {16, 24, 32})
-    void aceptaClavesDe16_24o32Caracteres(int longitud) {
-        EncryptionService conClave = new EncryptionService("k".repeat(longitud));
+    void acceptsKeysOf16_24Or32Characters(int length) {
+        EncryptionService serviceWithKey = new EncryptionService("k".repeat(length));
 
-        assertEquals("secreto", conClave.decrypt(conClave.encrypt("secreto")));
+        assertEquals("secret", serviceWithKey.decrypt(serviceWithKey.encrypt("secret")));
     }
 }

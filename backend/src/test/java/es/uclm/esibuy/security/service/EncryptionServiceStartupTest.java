@@ -11,17 +11,16 @@ class EncryptionServiceStartupTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withInitializer(new ConfigDataApplicationContextInitializer())
             .withUserConfiguration(EncryptionService.class);
-            
 
     @Test
-    void arrancaConUnaClaveValida() {
+    void startsWithValidKey() {
         contextRunner
                 .withPropertyValues("AES_KEY=0123456789abcdef0123456789abcdef")
                 .run(context -> assertThat(context).hasNotFailed());
     }
 
     @Test
-    void noArrancaSiLaClaveEstaVacia() {
+    void failsToStartWithEmptyKey() {
         contextRunner
                 .withPropertyValues("AES_KEY=")
                 .run(context -> {
@@ -31,9 +30,9 @@ class EncryptionServiceStartupTest {
     }
 
     @Test
-    void noArrancaSiLaClaveTieneUnaLongitudIncorrecta() {
+    void failsToStartWithWrongKeyLength() {
         contextRunner
-                .withPropertyValues("AES_KEY=corta")
+                .withPropertyValues("AES_KEY=short")
                 .run(context -> {
                     assertThat(context).hasFailed();
                     assertThat(context.getStartupFailure()).rootCause().hasMessageContaining("AES_KEY");

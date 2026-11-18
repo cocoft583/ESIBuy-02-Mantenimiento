@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Set;
 
 @Service
 public class EncryptionService {
@@ -18,23 +19,28 @@ public class EncryptionService {
     private static final String CIPHER_ALGORITHM = "AES/GCM/NoPadding";
     private static final int IV_LENGTH = 12;
     private static final int TAG_LENGTH = 128;
+    private static final Set<Integer> VALID_KEY_LENGTHS = Set.of(16, 24, 32);
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
-    private final String secretKey;
+    private final SecretKeySpec key;
 
     public EncryptionService(@Value("${app.security.aes-key}") String secretKey) {
         if (secretKey == null || secretKey.isBlank()) {
             throw new IllegalArgumentException(
                     "Falta la clave AES_KEY: defínela como variable de entorno o en backend/.env");
         }
-        this.secretKey = secretKey;
+        byte[] keyBytes = secretKey.getBytes(StandardCharsets.UTF_8);
+        if (!VALID_KEY_LENGTHS.contains(keyBytes.length)) {
+            throw new IllegalArgumentException(
+                    "La clave AES_KEY debe tener 16, 24 o 32 caracteres y tiene " + keyBytes.length);
+        }
+        this.key = new SecretKeySpec(keyBytes, KEY_ALGORITHM);
     }
 
     public String encrypt(String value) {
         if (value == null)
             return null;
         try {
-            SecretKeySpec key = new SecretKeySpec(secretKey.getBytes(StandardCharsets.UTF_8), KEY_ALGORITHM);
             byte[] iv = new byte[IV_LENGTH];
             SECURE_RANDOM.nextBytes(iv);
             Cipher cipher = Cipher.getInstance(CIPHER_ALGORITHM);
@@ -53,7 +59,6 @@ public class EncryptionService {
         if (encryptedValue == null)
             return null;
         try {
-            SecretKeySpec key = new SecretKeySpec(secretKey.getBytes(StandardCharsets.UTF_8), KEY_ALGORITHM);
             byte[] decoded = Base64.getDecoder().decode(encryptedValue);
             if (decoded.length <= IV_LENGTH)
                 throw new IllegalArgumentException("Texto cifrado inválido");
