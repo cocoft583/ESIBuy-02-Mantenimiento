@@ -20,10 +20,15 @@ public class EncryptionService {
     private static final int TAG_LENGTH = 128;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
-    // Define esta clave fija de 16 caracteres en application.properties (ej:
-    // app.security.aes-key=1234567890123456)
-    @Value("${app.security.aes-key:1234567890123456}")
-    private String secretKey;
+    private final String secretKey;
+
+    public EncryptionService(@Value("${app.security.aes-key}") String secretKey) {
+        if (secretKey == null || secretKey.isBlank()) {
+            throw new IllegalArgumentException(
+                    "Falta la clave AES_KEY: defínela como variable de entorno o en backend/.env");
+        }
+        this.secretKey = secretKey;
+    }
 
     public String encrypt(String value) {
         if (value == null)
