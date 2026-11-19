@@ -189,7 +189,9 @@ public class SecurityConfig {
                                 "http://localhost:5173",
                                 "http://localhost:4200",
                                 "https://esibuy-2627.web.app",
-                                "https://esibuy-2627.firebaseapp.com"));
+                                "https://esibuy-2627.firebaseapp.com",
+                                "https://localhost",          // app Android (Capacitor)
+                                "capacitor://localhost"));    // app iOS (Capacitor)
                 configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
                 configuration.setAllowedHeaders(List.of("*"));
                 configuration.setExposedHeaders(
