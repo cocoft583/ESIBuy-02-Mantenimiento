@@ -399,6 +399,20 @@
     font-size: 0.75rem;
   }
 
+  /* «Iniciar sesión» partía en dos líneas a 360 px */
+  .app-auth-nav {
+    gap: 0.35rem;
+  }
+
+  .auth-nav-link {
+    padding-inline: 0.5rem;
+    white-space: nowrap;
+  }
+
+  .auth-nav-button {
+    padding-inline: 0.75rem;
+  }
+
   .site-footer {
     align-items: flex-start;
     flex-direction: column;
