@@ -24,4 +24,22 @@ class SensitiveInformationPropertiesTest {
     void errorResponsesDoNotIncludeExceptionMessage() throws IOException {
         assertEquals("never", load("application.properties").getProperty("server.error.include-message"));
     }
+
+    @Test
+    void otpCodeIsNotLoggedByDefault() throws IOException {
+        assertEquals("false", load("application.properties").getProperty("app.security.email-otp.log-code"));
+    }
+
+    @Test
+    void passwordResetTokenIsNotLoggedByDefault() throws IOException {
+        assertEquals("false", load("application.properties").getProperty("esibuy.password-reset.log-token"));
+    }
+
+    @Test
+    void devProfileLogsOtpCodeAndResetToken() throws IOException {
+        Properties dev = load("application-dev.properties");
+
+        assertEquals("true", dev.getProperty("app.security.email-otp.log-code"));
+        assertEquals("true", dev.getProperty("esibuy.password-reset.log-token"));
+    }
 }
