@@ -1,6 +1,7 @@
 package es.uclm.esibuy.auth.passwordreset.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -39,8 +40,10 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.mail.MailSendException;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class PasswordResetServiceTest {
 
         private static final String USER_ID = "user-1";
@@ -187,6 +190,28 @@ class PasswordResetServiceTest {
                                 eq(EMAIL),
                                 any(String.class));
         }
+
+        @Test
+        void requestResetShouldNotLogRawTokenByDefault(CapturedOutput output) {
+                when(rateLimiter.allow("127.0.0.1", EMAIL)).thenReturn(true);
+
+                when(userRepository.findByEmailIgnoreCase(EMAIL))
+                                .thenReturn(Optional.of(user));
+
+                service.requestReset(EMAIL, "127.0.0.1");
+
+                ArgumentCaptor<String> urlCaptor = ArgumentCaptor.forClass(String.class);
+
+                verify(emailService).sendPasswordResetEmail(
+                                eq(EMAIL),
+                                urlCaptor.capture());
+
+                String resetUrl = urlCaptor.getValue();
+                String rawToken = resetUrl.substring(resetUrl.indexOf("token=") + 6);
+
+                assertFalse(output.toString().contains(rawToken));
+        }
+
 
         @Test
         void requestResetShouldUseDevelopmentConfigurationWithoutChangingTokenStorage() {
