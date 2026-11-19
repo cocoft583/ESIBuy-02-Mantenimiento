@@ -1203,9 +1203,12 @@
     width: 100%;
   }
 
+  /* En columna el slider no puede salirse del bloque del precio: quedaría
+     encima de «Valoración mínima». Se mete en el flujo. */
   .price-range-slider {
-    margin-right: 8px;
-    margin-left: 8px;
+    position: relative;
+    top: auto;
+    margin: 0 8px;
   }
 
   .filter-actions-group {
