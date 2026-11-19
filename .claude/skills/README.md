@@ -14,7 +14,7 @@ Claude Code carga las skills de esta carpeta al abrir el repo. Las de `.agents/s
 | `trazabilidad-mantenimiento` | hallazgo → HU → tasks → commits, tests y PR en la nota de HU y en Azure | adaptada de `matriz-trazabilidad` |
 | `hallazgo-mantenimiento` | registrar un fallo nuevo como hallazgo C/A/M/B y proponer su HU | nueva |
 | `revision-secretos` | buscar credenciales, claves por defecto y datos sensibles en logs y errores | nueva |
-| `notas-obsidian` | documentar decisiones en el vault del equipo | adaptada de `notas-obsidian` |
+| `notas-obsidian` | documentar decisiones y explicaciones en el vault de Obsidian de cada uno (vault y carpetas en su `CLAUDE.local.md`) | adaptada de `notas-obsidian` |
 
 ## Seguridad, calidad y código en general
 

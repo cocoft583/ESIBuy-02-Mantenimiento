@@ -1,6 +1,6 @@
 ---
 name: tdd-hu
-description: Guía una HU del mantenimiento de ESIBuy con TDD, ciclo a ciclo, dando el código completo, dónde va cada cosa y los comandos de PowerShell para tests y commits, sin tocar el código. Úsalo cuando se pida «vamos a hacer la HUxx», «pásame el código por ciclos» o similar.
+description: Guía una HU del mantenimiento de ESIBuy con TDD, ciclo a ciclo, dando el código completo, dónde va cada cosa y los comandos para tests y commits (en el sistema del usuario: Windows, macOS o Linux), sin tocar el código. Úsalo cuando se pida «vamos a hacer la HUxx», «pásame el código por ciclos» o similar.
 ---
 
 Guía una historia de usuario del mantenimiento con TDD. **El código lo escribe el usuario**: tú lees, diseñas los ciclos y das el código y los comandos listos para copiar. No edites archivos del proyecto salvo que el usuario lo pida expresamente para un paso concreto (p. ej. «el refactor hazlo tú»).
@@ -18,8 +18,8 @@ Argumentos recibidos (opcional): $ARGUMENTS. Normalmente, el número de HU.
 
 Desde `develop` actualizado, con el nombre `feature/HUxx-<descripcion-corta>-AB<id de la HU>`:
 
-```powershell
-cd <repo>
+```
+cd "$(git rev-parse --show-toplevel)"
 git switch develop
 git pull --ff-only
 git switch -c feature/HUxx-descripcion-ABnnn
@@ -37,15 +37,31 @@ Si hay archivos sin seguimiento de otra HU, avisa: viajan con el cambio de rama 
 - Tests de logs: `OutputCaptureExtension` y `CapturedOutput`.
 - Nada de `ReflectionTestUtils` para meter dependencias si se puede pasar por constructor.
 
+## Comandos en Windows, macOS y Linux
+
+Da los comandos de forma que valgan en todos los sistemas:
+
+- `git`, `gh`, `npm` y `npx` se escriben igual en todos.
+- Rutas con `/` (PowerShell también las acepta) y, para ir a la raíz del repo, `cd "$(git rev-parse --show-toplevel)"`, que funciona en bash, zsh y PowerShell.
+- Solo cambian el wrapper de Maven y las variables de entorno. Si no sabes el sistema del usuario, da las dos variantes:
+
+| | macOS / Linux (bash, zsh) | Windows (PowerShell) |
+|---|---|---|
+| Maven | `./mvnw ...` (si da «permiso denegado», `sh mvnw ...`) | `.\mvnw.cmd ...` |
+| Variable para un comando | `SESSION_COOKIE_SECURE=true ./mvnw clean verify` | `$env:SESSION_COOKIE_SECURE = "true"; .\mvnw.cmd clean verify` |
+
+- Pon entre comillas los argumentos `-D` (`"-Dtest=NombreTest"`): PowerShell los necesita y en bash no molestan.
+
 ## 4. Formato de la respuesta
 
 Por cada ciclo, en este orden y sin saltos:
 
-1. **🔴 Rojo**: ruta exacta del archivo (`backend\src\test\java\...`), si es nuevo o existente, y el código. Para archivos existentes, di exactamente dónde va: línea, «antes de la última llave», «sustituye todo el contenido», imports que añadir.
-2. Comando del test, siempre con `cd` absoluto:
-   ```powershell
-   cd <repo>\backend
-   .\mvnw.cmd -q test "-Dtest=NombreTest"
+1. **🔴 Rojo**: ruta exacta del archivo (`backend/src/test/java/...`), si es nuevo o existente, y el código. Para archivos existentes, di exactamente dónde va: línea, «antes de la última llave», «sustituye todo el contenido», imports que añadir.
+2. Comando del test, siempre con `cd` a una ruta fija, con el wrapper del sistema del usuario (ver «Comandos en Windows, macOS y Linux»):
+   ```
+   cd "$(git rev-parse --show-toplevel)/backend"
+   ./mvnw -q test "-Dtest=NombreTest"        # macOS / Linux
+   .\mvnw.cmd -q test "-Dtest=NombreTest"    # Windows (PowerShell)
    ```
    y qué tiene que salir (cuántos fallan o pasan).
 3. Commit del rojo (skill `commit-esibuy`): `git add` con rutas explícitas desde la raíz y `git commit -m "ciclo rojo - ..." -m "AB#<task>"`.
@@ -53,7 +69,7 @@ Por cada ciclo, en este orden y sin saltos:
 
 Al final:
 
-- La suite completa como la CI: `$env:SESSION_COOKIE_SECURE = "true"; .\mvnw.cmd clean verify` (el `.env` local pone la cookie insegura y si no falla `CategoryControllerTest`).
+- La suite completa como la CI: `SESSION_COOKIE_SECURE=true ./mvnw clean verify` en macOS / Linux, o `$env:SESSION_COOKIE_SECURE = "true"; .\mvnw.cmd clean verify` en PowerShell (el `.env` local pone la cookie insegura y si no falla `CategoryControllerTest`).
 - `git push -u origin <rama>` y la PR con la skill `pr-esibuy`.
 - Qué tasks quedan cerradas y cuáles no.
 

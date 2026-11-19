@@ -24,7 +24,7 @@ Argumentos recibidos (opcional): $ARGUMENTS. El número de HU o de task, materia
    - **Paso 0 · Rama**, solo como texto: `feature/HUxx-<descripcion>-AB<pbi>` desde `origin/develop`.
    - **Decisiones pendientes**: tabla con la decisión y dónde queda reflejada.
    - **Ciclos**: tabla con orden, test (nombre en inglés), task, tipo (normal, frontera o comportamiento ya existente) y si se espera rojo real. Por ciclo: archivo y ubicación exactos, qué pide el test para el verde y en qué clase y paquete va, y los commits (`ciclo rojo - ...` / `ciclo verde - ...` con `AB#<task>`).
-   - **Verificación**: el comando por ciclo (`.\mvnw.cmd -q test "-Dtest=<Clase>"`) con el resultado esperado, y el final como la CI: `$env:SESSION_COOKIE_SECURE = "true"; .\mvnw.cmd clean verify`. Los commits de rojo dejan la suite en rojo a propósito; el PR se abre con todo en verde.
+   - **Verificación**: el comando por ciclo (`./mvnw -q test "-Dtest=<Clase>"`, o `.\mvnw.cmd` en Windows) con el resultado esperado, y el final como la CI: `SESSION_COOKIE_SECURE=true ./mvnw clean verify` (en PowerShell, `$env:SESSION_COOKIE_SECURE = "true"; .\mvnw.cmd clean verify`). Si el plan es para otra persona y no sabes su sistema, pon las dos variantes. Los commits de rojo dejan la suite en rojo a propósito; el PR se abre con todo en verde.
    - **Riesgos y efectos secundarios**: qué más toca el cambio (p. ej. variables de entorno que pasan a ser obligatorias en local o en el despliegue).
 
 4. **Parar.** Di la ruta del plan, resume las decisiones pendientes y espera instrucciones.

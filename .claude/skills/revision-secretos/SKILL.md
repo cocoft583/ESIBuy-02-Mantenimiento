@@ -14,19 +14,19 @@ Argumentos recibidos (opcional): $ARGUMENTS. Puede ser «diff» (solo lo que cam
    - `PASSWORD_PEPPER`, `AES_KEY`, contraseñas de correo (`EMAIL_PWD`), tokens de Sonar o Firebase.
 
    La regla del proyecto (HU01): los secretos no tienen valor por defecto y el arranque falla si faltan.
-2. **Archivos que no deben estar en git**: `backend/.env` o cualquier `.env` (`git ls-files | grep -i env`), claves (`*.pem`, `*.key`, `*.jks`).
+2. **Archivos que no deben estar en git**: `backend/.env` o cualquier `.env` (`git ls-files -- '*.env' '*.env.*'`), claves (`*.pem`, `*.key`, `*.jks`).
 3. **Secretos en los logs**: `LOGGER.*` que escriben OTP, tokens de recuperación, contraseñas o el `totpSecret`. Solo pueden salir con un interruptor que esté a `false` por defecto y `true` solo en el perfil `dev` (HU02).
 4. **Errores**: `server.error.include-stacktrace` e `include-message` tienen que estar a `never`, y los `@ExceptionHandler` no deben devolver `exception.getMessage()` de excepciones técnicas.
 5. **Frontend**: `environment*.ts` con claves o URLs internas; nada de tokens en `localStorage`.
 6. **Pipelines**: `azure-pipelines-*.yml` con tokens en claro o en la URL del `git push`.
 
-Búsquedas de partida:
+Búsquedas de partida. Van entre comillas simples y sin tuberías para que funcionen igual en bash, zsh y PowerShell:
 
-```bash
-git grep -nE "mongodb(\+srv)?://[^$\{]*:[^@]*@" -- ':!*.md'
-git grep -nE "\$\{[A-Z_]*(KEY|SECRET|PEPPER|PWD|PASSWORD|TOKEN)[A-Z_]*:[^}]+\}" -- backend/src/main/resources
-git grep -nE "LOGGER\.(info|warn|debug|error)\(.*(token|otp|code|password|secret)" -i -- backend/src/main/java
-git ls-files | grep -iE "(^|/)\.env|\.pem$|\.key$|\.jks$"
+```
+git grep -nE 'mongodb(\+srv)?://[^$\{]*:[^@]*@' -- ':!*.md'
+git grep -nE '\$\{[A-Z_]*(KEY|SECRET|PEPPER|PWD|PASSWORD|TOKEN)[A-Z_]*:[^}]+\}' -- backend/src/main/resources
+git grep -nEi 'LOGGER\.(info|warn|debug|error)\(.*(token|otp|code|password|secret)' -- backend/src/main/java
+git ls-files -- '*.env' '*.env.*' '*.pem' '*.key' '*.jks'
 ```
 
 Para saber si algo ya está en el historial y quién lo subió: `git log -S "<trozo>" --format="%h %an %ad %s" --date=short`.
