@@ -5,3 +5,7 @@ repomix-output.xml
 .env
 .env.*
 !.env.example
+
+# Claude Code: planes de trabajo y configuracion personal
+docs/planes/
+CLAUDE.local.md
