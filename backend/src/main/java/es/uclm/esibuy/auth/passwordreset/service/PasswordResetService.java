@@ -191,6 +191,8 @@ public class PasswordResetService {
                 .orElseThrow(InvalidPasswordResetTokenException::new);
 
         user.setPasswordHash(passwordEncoder.encode(newPassword));
+        // Cierra las sesiones abiertas en otros dispositivos (por si la contraseña estaba robada)
+        user.revokeSessions();
         userRepository.save(user);
 
         // Invalidar cualquier otro token activo del usuario.
