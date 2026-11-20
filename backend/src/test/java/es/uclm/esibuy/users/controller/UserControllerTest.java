@@ -16,6 +16,7 @@ import es.uclm.esibuy.users.model.User;
 import es.uclm.esibuy.users.model.UserRole;
 import es.uclm.esibuy.users.service.UserService;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -26,6 +27,7 @@ import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
@@ -54,6 +56,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(UserController.class)
+@TestPropertySource(properties = "app.security.email-otp.validity-seconds=120")
 @Import({
                 ApiExceptionHandler.class,
                 SecurityConfig.class,
@@ -70,6 +73,7 @@ class UserControllerTest {
         private static final String CURRENT_USER_API = "/api/users/me";
         private static final String EMAIL_OTP_SETTINGS_API = "/api/users/me/email-otp-settings";
         private static final String TEST_OTP = "123456";
+        private static final int OTP_VALIDITY_SECONDS = 120;
 
         @Autowired
         private MockMvc mockMvc;
@@ -112,14 +116,14 @@ class UserControllerTest {
                                                                 """))
                                 .andExpect(status().isAccepted())
                                 .andExpect(jsonPath("$.requires3fa").value(true))
-                                .andExpect(jsonPath("$.expiresInSeconds").value(600))
+                                .andExpect(jsonPath("$.expiresInSeconds").value(OTP_VALIDITY_SECONDS))
                                 .andReturn();
 
                 MockHttpSession pendingSession = (MockHttpSession) loginResult.getRequest().getSession(false);
 
                 assertNotNull(pendingSession);
                 assertEquals(oldSessionId, pendingSession.getId());
-                assertEquals(30 * 60, pendingSession.getMaxInactiveInterval());
+                assertEquals(OTP_VALIDITY_SECONDS, pendingSession.getMaxInactiveInterval());
 
                 MvcResult verificationResult = mockMvc.perform(
                                 post(VERIFY_OTP_API)
@@ -386,7 +390,7 @@ class UserControllerTest {
                 loginRequest()
                                 .andExpect(status().isAccepted())
                                 .andExpect(jsonPath("$.requires3fa").value(true))
-                                .andExpect(jsonPath("$.expiresInSeconds").value(600));
+                                .andExpect(jsonPath("$.expiresInSeconds").value(OTP_VALIDITY_SECONDS));
 
                 verify(emailOtpService).issueChallenge(seller);
                 verify(sessionAuthenticationService, never())
@@ -541,6 +545,53 @@ class UserControllerTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("""
                                                 {"code":"000000"}
+                                                """))
+                                .andExpect(status().isUnauthorized());
+
+                verify(sessionAuthenticationService, never())
+                                .authenticate(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("HU6-CP02: el paso de verificación dura lo mismo que el código")
+        void pendingVerificationStepLastsAsLongAsTheOtpValidity() throws Exception {
+                User seller = activeSeller();
+                when(userService.login(any(LoginRequest.class))).thenReturn(seller);
+
+                MvcResult loginResult = loginRequest()
+                                .andExpect(status().isAccepted())
+                                .andExpect(jsonPath("$.expiresInSeconds").value(OTP_VALIDITY_SECONDS))
+                                .andReturn();
+
+                MockHttpSession pendingSession = (MockHttpSession) loginResult.getRequest().getSession(false);
+
+                assertNotNull(pendingSession);
+                assertEquals(OTP_VALIDITY_SECONDS, pendingSession.getMaxInactiveInterval());
+        }
+
+        @Test
+        @DisplayName("HU6-CP03: con el código caducado el paso de verificación se rechaza")
+        void shouldRejectExpiredOtpAndKeepAuthenticationUnauthenticated() throws Exception {
+                User seller = activeSeller();
+                when(userService.login(any(LoginRequest.class))).thenReturn(seller);
+                when(userService.findById(SELLER_ID)).thenReturn(seller);
+
+                doThrow(new es.uclm.esibuy.common.exception.InvalidOtpException())
+                                .when(emailOtpService).verifyChallenge(SELLER_ID, TEST_OTP);
+
+                MvcResult loginResult = loginRequest()
+                                .andExpect(status().isAccepted())
+                                .andReturn();
+
+                MockHttpSession session = (MockHttpSession) loginResult.getRequest().getSession(false);
+                assertNotNull(session);
+
+                mockMvc.perform(post(VERIFY_OTP_API)
+                                .with(csrf())
+                                .session(session)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                                {"code":"123456"}
                                                 """))
                                 .andExpect(status().isUnauthorized());
 
