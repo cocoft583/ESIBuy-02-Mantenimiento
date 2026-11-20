@@ -3,6 +3,7 @@ package es.uclm.esibuy.security.service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalLong;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -43,14 +44,23 @@ public class TwoFactorAuthenticationService {
         return new SetupResult(Status.SUCCESS, secret);
     }
 
-    /** Verifies a TOTP or consumes a valid one-time backup code during login. */
+    /**
+     * Verifies a TOTP or consumes a valid one-time backup code during login.
+     * A TOTP is accepted once: a code from a period that was already used is rejected.
+     */
     public boolean verifyLoginCode(User user, String code) {
         if (code == null || code.isBlank()) {
             return false;
         }
 
         String rawSecret = encryptionService.decrypt(user.getTotpSecret());
-        if (totpService.verifyCode(rawSecret, code)) {
+        OptionalLong timeStep = totpService.findMatchingTimeStep(rawSecret, code);
+        if (timeStep.isPresent()) {
+            if (timeStep.getAsLong() <= user.getTotpLastUsedStep()) {
+                return false;
+            }
+            user.setTotpLastUsedStep(timeStep.getAsLong());
+            userService.save(user);
             return true;
         }
 
