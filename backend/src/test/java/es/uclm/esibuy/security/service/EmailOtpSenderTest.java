@@ -56,6 +56,16 @@ class EmailOtpSenderTest {
     }
 
     @Test
+    void devProfileKeepsTheLoggedCodeUsableWhenTheEmailCannotBeSent(CapturedOutput output) {
+        doThrow(new MailSendException("smtp.example.com refused the connection"))
+                .when(mailSender).send(any(SimpleMailMessage.class));
+
+        sender(true).sendOtp("user@example.com", "123456");
+
+        assertThat(output).contains("123456");
+    }
+
+    @Test
     void doesNotLogOtpCodeWhenLoggingIsDisabled(CapturedOutput output) {
         sender(false).sendOtp("user@example.com", "123456");
 
