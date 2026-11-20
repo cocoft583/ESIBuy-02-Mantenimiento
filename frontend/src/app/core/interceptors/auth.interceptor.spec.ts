@@ -65,4 +65,18 @@ describe('authInterceptor', () => {
     expect(clearCurrentUser).not.toHaveBeenCalled();
     expect(navigate).not.toHaveBeenCalled();
   });
+
+  it('redirects with the revoked notice when the server closes the session', () => {
+    http.get('/api/cart').subscribe({ error: () => undefined });
+
+    httpTesting.expectOne('/api/cart').flush(
+      { success: false, code: 'SESSION_REVOKED' },
+      { status: 401, statusText: 'Unauthorized' },
+    );
+
+    expect(clearCurrentUser).toHaveBeenCalledOnce();
+    expect(navigate).toHaveBeenCalledWith(['/'], {
+      queryParams: { revoked: 'true' },
+    });
+  });
 });

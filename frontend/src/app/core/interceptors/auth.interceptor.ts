@@ -49,7 +49,8 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
         && requestPath.startsWith('/api/')
         && !SESSION_ENDPOINTS.has(requestPath)) {
         authService.clearCurrentUser();
-        void router.navigate(['/'], { queryParams: { expired: 'true' } });
+        const reason = error.error?.code === 'SESSION_REVOKED' ? 'revoked' : 'expired';
+        void router.navigate(['/'], { queryParams: { [reason]: 'true' } });
       }
 
       return throwError(() => error);

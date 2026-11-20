@@ -175,6 +175,14 @@ describe('Login', () => {
     expect(fixture.componentInstance.serverError).toBe('Tu sesión ha expirado');
   });
 
+  it('shows the revoked-session message from the redirect query parameter', () => {
+    routeSnapshot.queryParamMap = convertToParamMap({ revoked: 'true' });
+    fixture = TestBed.createComponent(Login);
+
+    expect(fixture.componentInstance.serverError)
+      .toBe('Tu sesión se ha cerrado porque ha cambiado el estado de tu cuenta. Vuelve a iniciar sesión.');
+  });
+
   it('navigates to password recovery when requested', () => {
     component.showForgotPasswordMessage();
 
