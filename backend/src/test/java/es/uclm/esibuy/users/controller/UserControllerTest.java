@@ -16,6 +16,7 @@ import es.uclm.esibuy.users.model.User;
 import es.uclm.esibuy.users.model.UserRole;
 import es.uclm.esibuy.users.service.UserService;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -549,6 +550,23 @@ class UserControllerTest {
 
                 verify(sessionAuthenticationService, never())
                                 .authenticate(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("HU6-CP02: el paso de verificación dura lo mismo que el código")
+        void pendingVerificationStepLastsAsLongAsTheOtpValidity() throws Exception {
+                User seller = activeSeller();
+                when(userService.login(any(LoginRequest.class))).thenReturn(seller);
+
+                MvcResult loginResult = loginRequest()
+                                .andExpect(status().isAccepted())
+                                .andExpect(jsonPath("$.expiresInSeconds").value(OTP_VALIDITY_SECONDS))
+                                .andReturn();
+
+                MockHttpSession pendingSession = (MockHttpSession) loginResult.getRequest().getSession(false);
+
+                assertNotNull(pendingSession);
+                assertEquals(OTP_VALIDITY_SECONDS, pendingSession.getMaxInactiveInterval());
         }
 
         private User activeSeller() {
