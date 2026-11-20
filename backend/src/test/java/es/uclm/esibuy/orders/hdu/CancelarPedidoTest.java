@@ -284,6 +284,49 @@ class CancelarPedidoTest {
         verify(productRepository, never()).save(any());
     }
 
+    @Test
+    @DisplayName("HU14-CP02: un pedido con varias líneas repone cada producto con su propio $inc")
+    void anOrderWithSeveralLinesRestoresEachProductWithItsOwnIncrement() {
+        // Arrange
+        when(order.getItems()).thenReturn(List.of(
+                createOrderItem(),
+                new OrderItem(
+                        "producto-2",
+                        "Otro producto",
+                        4,
+                        BigDecimal.TEN,
+                        BigDecimal.valueOf(40))));
+        when(order.getStatus()).thenReturn(OrderStatus.PENDIENTE);
+        when(order.getPaymentStatus()).thenReturn(OrderPaymentStatus.PAGADO);
+        when(mongoTemplate.findAndModify(
+                any(Query.class),
+                any(Update.class),
+                any(FindAndModifyOptions.class),
+                eq(Product.class)))
+                .thenReturn(mock(Product.class));
+
+        // Act
+        orderService.cancelCustomerOrder(CUSTOMER_ID, ORDER_ID);
+
+        // Assert
+        ArgumentCaptor<Query> queries = ArgumentCaptor.forClass(Query.class);
+        ArgumentCaptor<Update> updates = ArgumentCaptor.forClass(Update.class);
+        verify(mongoTemplate, times(2)).findAndModify(
+                queries.capture(),
+                updates.capture(),
+                any(FindAndModifyOptions.class),
+                eq(Product.class));
+        assertEquals(
+                List.of(new Document("_id", "producto-1"), new Document("_id", "producto-2")),
+                queries.getAllValues().stream().map(Query::getQueryObject).toList());
+        assertEquals(
+                List.of(
+                        new Document("$inc", new Document("stock", 2)),
+                        new Document("$inc", new Document("stock", 4))),
+                updates.getAllValues().stream().map(Update::getUpdateObject).toList());
+        verify(order).setStatus(OrderStatus.CANCELADO);
+    }
+
     private OrderItem createOrderItem() {
         return new OrderItem(
                 "producto-1",
