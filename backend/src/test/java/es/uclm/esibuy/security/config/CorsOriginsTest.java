@@ -3,6 +3,7 @@ package es.uclm.esibuy.security.config;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -13,6 +14,8 @@ import java.util.Properties;
 import es.uclm.esibuy.categories.controller.CategoryController;
 import es.uclm.esibuy.categories.service.CategoryService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -45,6 +48,17 @@ class CorsOriginsTest {
         mockMvc.perform(get("/api/categorias").header("Origin", "https://otra-web.example"))
                 .andExpect(status().isForbidden());
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"PUT", "DELETE", "PATCH"})
+    void theEsibuyWebCanSendWriteRequests(String method) throws Exception {
+        mockMvc.perform(options("/api/categorias")
+                        .header("Origin", "https://esibuy-2627.web.app")
+                        .header("Access-Control-Request-Method", method))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "https://esibuy-2627.web.app"));
+    }
+
 
     @Test
     void rejectsLocalhostOutsideTheDevProfile() throws Exception {
