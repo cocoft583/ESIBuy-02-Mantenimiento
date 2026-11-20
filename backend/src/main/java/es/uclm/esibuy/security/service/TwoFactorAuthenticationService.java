@@ -27,12 +27,15 @@ public class TwoFactorAuthenticationService {
         this.encryptionService = encryptionService;
     }
 
-    public String setup(String userId) {
+    public SetupResult setup(String userId, String code) {
         User user = userService.findById(userId);
+        if (user.isTotpEnabled() && !verifyTotp(user, code)) {
+            return new SetupResult(Status.INVALID_CODE, null);
+        }
         String secret = totpService.generateSecret();
         user.setTotpSecret(encryptionService.encrypt(secret));
         userService.save(user);
-        return secret;
+        return new SetupResult(Status.SUCCESS, secret);
     }
 
     /** Verifies a TOTP or consumes a valid one-time backup code during login. */
@@ -75,7 +78,7 @@ public class TwoFactorAuthenticationService {
         if (!user.isTotpEnabled()) {
             return new BackupCodesResult(Status.TWO_FACTOR_DISABLED, List.of());
         }
-        if (code != null && !code.isBlank() && !verifyTotp(user, code)) {
+        if (!verifyTotp(user, code)) {
             return new BackupCodesResult(Status.INVALID_CODE, List.of());
         }
 
@@ -117,4 +120,6 @@ public class TwoFactorAuthenticationService {
     public record EnableResult(boolean enabled, List<String> backupCodes) { }
 
     public record BackupCodesResult(Status status, List<String> backupCodes) { }
+
+    public record SetupResult(Status status, String secret) { }
 }

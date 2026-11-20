@@ -24,6 +24,7 @@ import es.uclm.esibuy.security.service.LoginAttemptService;
 import es.uclm.esibuy.security.service.SessionAuthenticationService;
 import es.uclm.esibuy.security.service.TwoFactorAuthenticationService;
 import es.uclm.esibuy.users.dto.AdminCreateRequest;
+import es.uclm.esibuy.users.dto.ChangeCustomerTypeRequest;
 import es.uclm.esibuy.users.dto.ClientRegistrationRequest;
 import es.uclm.esibuy.users.dto.EmailOtpSettingsRequest;
 import es.uclm.esibuy.users.dto.LoginRequest;
@@ -39,7 +40,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
-import es.uclm.esibuy.users.dto.ChangeCustomerTypeRequest;
 
 @RestController
 @RequestMapping("/api/users")
@@ -244,12 +244,19 @@ public class UserController {
 
     @PostMapping("/2fa/setup")
     public ResponseEntity<Map<String, String>> setup2FA(
+            @RequestBody(required = false) Map<String, String> body,
             @AuthenticationPrincipal AuthenticatedUserPrincipal principal) {
         if (principal == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        String secret = twoFactorAuthenticationService.setup(principal.id());
+        TwoFactorAuthenticationService.SetupResult result = twoFactorAuthenticationService.setup(principal.id(),
+                body != null ? body.get("code") : null);
+        if (result.status() == TwoFactorAuthenticationService.Status.INVALID_CODE) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of(MESSAGE_KEY, "El código introducido es incorrecto"));
+        }
+        String secret = result.secret();
         String qrUri = String.format("otpauth://totp/ESIBuy:%s?secret=%s&issuer=ESIBuy", principal.email(), secret);
         return ResponseEntity.ok(Map.of("secret", secret, "qrUri", qrUri));
     }
