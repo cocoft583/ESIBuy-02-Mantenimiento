@@ -3,6 +3,7 @@ package es.uclm.esibuy.users.controller;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -56,18 +57,21 @@ public class UserController {
     private final TwoFactorAuthenticationService twoFactorAuthenticationService;
     private static final String PENDING_OTP_USER_ID = "PENDING_OTP_USER_ID";
     private final EmailOtpService emailOtpService;
+    private final long emailOtpValiditySeconds;
 
     public UserController(
             UserService userService,
             LoginAttemptService loginAttemptService,
             SessionAuthenticationService sessionAuthenticationService,
             TwoFactorAuthenticationService twoFactorAuthenticationService,
-            EmailOtpService emailOtpService) {
+            EmailOtpService emailOtpService,
+            @Value("${app.security.email-otp.validity-seconds}") long emailOtpValiditySeconds) {
         this.userService = userService;
         this.loginAttemptService = loginAttemptService;
         this.sessionAuthenticationService = sessionAuthenticationService;
         this.twoFactorAuthenticationService = twoFactorAuthenticationService;
         this.emailOtpService = emailOtpService;
+        this.emailOtpValiditySeconds = emailOtpValiditySeconds;
     }
 
     @PostMapping("/register/client")
@@ -135,7 +139,7 @@ public class UserController {
             emailOtpService.issueChallenge(user);
 
             HttpSession session = servletRequest.getSession(true);
-            session.setMaxInactiveInterval(30 * 60);
+            session.setMaxInactiveInterval(Math.toIntExact(emailOtpValiditySeconds));
             session.setAttribute(PENDING_OTP_USER_ID, user.getId());
 
             SecurityContextHolder.clearContext();
@@ -143,7 +147,7 @@ public class UserController {
             return ResponseEntity.accepted().body(
                     Map.of(
                             "requires3fa", true,
-                            "expiresInSeconds", 600));
+                            "expiresInSeconds", emailOtpValiditySeconds));
         }
         // CLIENT mantiene el comportamiento actual.
         loginAttemptService.loginSucceeded(
