@@ -16,6 +16,7 @@ import es.uclm.esibuy.users.model.User;
 import es.uclm.esibuy.users.model.UserRole;
 import es.uclm.esibuy.users.service.UserService;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -549,6 +550,68 @@ class UserControllerTest {
 
                 verify(sessionAuthenticationService, never())
                                 .authenticate(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("HU6-CP02: el paso de verificación dura lo mismo que el código")
+        void pendingVerificationStepLastsAsLongAsTheOtpValidity() throws Exception {
+                User seller = activeSeller();
+                when(userService.login(any(LoginRequest.class))).thenReturn(seller);
+
+                MvcResult loginResult = loginRequest()
+                                .andExpect(status().isAccepted())
+                                .andExpect(jsonPath("$.expiresInSeconds").value(OTP_VALIDITY_SECONDS))
+                                .andReturn();
+
+                MockHttpSession pendingSession = (MockHttpSession) loginResult.getRequest().getSession(false);
+
+                assertNotNull(pendingSession);
+                assertEquals(OTP_VALIDITY_SECONDS, pendingSession.getMaxInactiveInterval());
+        }
+
+        @Test
+        @DisplayName("HU6-CP03: con el código caducado el paso de verificación se rechaza")
+        void shouldRejectExpiredOtpAndKeepAuthenticationUnauthenticated() throws Exception {
+                User seller = activeSeller();
+                when(userService.login(any(LoginRequest.class))).thenReturn(seller);
+                when(userService.findById(SELLER_ID)).thenReturn(seller);
+
+                doThrow(new es.uclm.esibuy.common.exception.InvalidOtpException())
+                                .when(emailOtpService).verifyChallenge(SELLER_ID, TEST_OTP);
+
+                MvcResult loginResult = loginRequest()
+                                .andExpect(status().isAccepted())
+                                .andReturn();
+
+                MockHttpSession session = (MockHttpSession) loginResult.getRequest().getSession(false);
+                assertNotNull(session);
+
+                mockMvc.perform(post(VERIFY_OTP_API)
+                                .with(csrf())
+                                .session(session)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                                {"code":"123456"}
+                                                """))
+                                .andExpect(status().isUnauthorized());
+
+                verify(sessionAuthenticationService, never())
+                                .authenticate(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("HU6-CP04: el desafío para desactivar el OTP informa de la validez configurada")
+        void disableChallengeReportsTheConfiguredOtpValidity() throws Exception {
+                User seller = activeSeller();
+                when(userService.findById(SELLER_ID)).thenReturn(seller);
+
+                mockMvc.perform(post("/api/users/me/email-otp-settings/disable-challenge")
+                                .with(sellerAuthentication())
+                                .with(csrf()))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.expiresInSeconds").value(OTP_VALIDITY_SECONDS));
+
+                verify(emailOtpService).issueDisableChallenge(seller);
         }
 
         private User activeSeller() {
