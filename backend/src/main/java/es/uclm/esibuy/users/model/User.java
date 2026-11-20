@@ -103,6 +103,11 @@ public class User {
         return sessionVersion;
     }
 
+    // Invalida todas las sesiones abiertas: el filtro rechaza las de una versión anterior
+    public void revokeSessions() {
+        sessionVersion++;
+    }
+
     public Instant getCreatedAt() {
         return createdAt;
     }
