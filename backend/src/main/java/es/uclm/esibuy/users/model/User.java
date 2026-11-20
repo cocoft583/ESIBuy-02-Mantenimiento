@@ -34,7 +34,8 @@ public class User {
 
     private String totpSecret;
     private boolean totpEnabled = false;
-    private List<String> backupCodes = new ArrayList<>();
+    // Solo el hash BCrypt de cada código: el código en claro se enseña una vez, al generarlo
+    private List<String> backupCodeHashes = new ArrayList<>();
     private boolean emailOtpEnabled = false;
     private int sessionVersion;
 
@@ -184,12 +185,12 @@ public class User {
         this.totpEnabled = totpEnabled;
     }
 
-    public List<String> getBackupCodes() {
-        return backupCodes;
+    public List<String> getBackupCodeHashes() {
+        return backupCodeHashes;
     }
 
-    public void setBackupCodes(List<String> backupCodes) {
-        this.backupCodes = backupCodes;
+    public void setBackupCodeHashes(List<String> backupCodeHashes) {
+        this.backupCodeHashes = backupCodeHashes;
     }
 
     public boolean isEmailOtpEnabled() {

@@ -1,6 +1,7 @@
 package es.uclm.esibuy.security.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -16,6 +17,9 @@ import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import es.uclm.esibuy.users.model.User;
 import es.uclm.esibuy.users.service.UserService;
@@ -25,9 +29,11 @@ class TwoFactorAuthenticationServiceTest {
     private final UserService userService = mock(UserService.class);
     private final TotpService totpService = mock(TotpService.class);
     private final EncryptionService encryptionService = mock(EncryptionService.class);
+    // BCrypt real con coste bajo: los tests comprueban de verdad que se guarda el hash
+    private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(4);
 
     private final TwoFactorAuthenticationService service = new TwoFactorAuthenticationService(
-            userService, totpService, encryptionService);
+            userService, totpService, encryptionService, passwordEncoder);
 
     private User user;
 
@@ -103,10 +109,10 @@ class TwoFactorAuthenticationServiceTest {
 
     @Test
     void consumesAndPersistsBackupCodeAfterValidFallback() {
-        List<String> backupCodes = new ArrayList<>(List.of("12345678"));
+        List<String> backupCodes = hashed("12345678");
         prepareSecret("raw-secret");
         when(totpService.verifyCode("raw-secret", "12345678")).thenReturn(false);
-        when(user.getBackupCodes()).thenReturn(backupCodes);
+        when(user.getBackupCodeHashes()).thenReturn(backupCodes);
 
         assertTrue(service.verifyLoginCode(user, " 12345678 "));
 
@@ -116,10 +122,10 @@ class TwoFactorAuthenticationServiceTest {
 
     @Test
     void doesNotConsumeBackupCodeWhenTotpIsValid() {
-        List<String> backupCodes = new ArrayList<>(List.of("12345678"));
+        List<String> backupCodes = hashed("12345678");
         prepareSecret("raw-secret");
         when(totpService.verifyCode("raw-secret", "654321")).thenReturn(true);
-        when(user.getBackupCodes()).thenReturn(backupCodes);
+        when(user.getBackupCodeHashes()).thenReturn(backupCodes);
 
         assertTrue(service.verifyLoginCode(user, "654321"));
 
@@ -140,8 +146,7 @@ class TwoFactorAuthenticationServiceTest {
     void rejectsUnknownBackupCodeWithoutPersisting() {
         prepareSecret("raw-secret");
         when(totpService.verifyCode("raw-secret", "000000")).thenReturn(false);
-        when(user.getBackupCodes()).thenReturn(
-                new ArrayList<>(List.of("12345678")));
+        when(user.getBackupCodeHashes()).thenReturn(hashed("12345678"));
 
         assertFalse(service.verifyLoginCode(user, "000000"));
 
@@ -152,7 +157,7 @@ class TwoFactorAuthenticationServiceTest {
     void rejectsBackupCodeWhenBackupCodeListIsNull() {
         prepareSecret("raw-secret");
         when(totpService.verifyCode("raw-secret", "000000")).thenReturn(false);
-        when(user.getBackupCodes()).thenReturn(null);
+        when(user.getBackupCodeHashes()).thenReturn(null);
 
         assertFalse(service.verifyLoginCode(user, "000000"));
 
@@ -176,7 +181,7 @@ class TwoFactorAuthenticationServiceTest {
         assertEquals(generatedCodes, result.backupCodes());
 
         verify(user).setTotpEnabled(true);
-        verify(user).setBackupCodes(generatedCodes);
+        assertStoresOnlyHashes(generatedCodes);
         verify(userService).save(user);
     }
 
@@ -247,7 +252,7 @@ class TwoFactorAuthenticationServiceTest {
         assertEquals(TwoFactorAuthenticationService.Status.SUCCESS, result.status());
         assertEquals(generatedCodes, result.backupCodes());
 
-        verify(user).setBackupCodes(generatedCodes);
+        assertStoresOnlyHashes(generatedCodes);
         verify(userService).save(user);
     }
 
@@ -327,7 +332,7 @@ class TwoFactorAuthenticationServiceTest {
 
         verify(user).setTotpEnabled(false);
         verify(user).setTotpSecret(null);
-        verify(user).setBackupCodes(anyList());
+        verify(user).setBackupCodeHashes(anyList());
         verify(userService).save(user);
     }
 
@@ -343,6 +348,40 @@ class TwoFactorAuthenticationServiceTest {
 
         verify(encryptionService, never()).decrypt(org.mockito.ArgumentMatchers.any());
         verify(userService, never()).save(user);
+    }
+
+    // HU09: un código de respaldo sirve una sola vez
+    @Test
+    void rejectsBackupCodeThatWasAlreadyUsed() {
+        List<String> backupCodes = hashed("12345678", "87654321");
+        prepareSecret("raw-secret");
+        when(totpService.verifyCode("raw-secret", "12345678")).thenReturn(false);
+        when(user.getBackupCodeHashes()).thenReturn(backupCodes);
+
+        assertTrue(service.verifyLoginCode(user, "12345678"));
+        assertFalse(service.verifyLoginCode(user, "12345678"));
+
+        assertEquals(1, backupCodes.size());
+        assertTrue(passwordEncoder.matches("87654321", backupCodes.get(0)));
+    }
+
+    private List<String> hashed(String... rawCodes) {
+        List<String> hashes = new ArrayList<>();
+        for (String rawCode : rawCodes) {
+            hashes.add(passwordEncoder.encode(rawCode));
+        }
+        return hashes;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertStoresOnlyHashes(List<String> rawCodes) {
+        ArgumentCaptor<List<String>> stored = ArgumentCaptor.forClass(List.class);
+        verify(user).setBackupCodeHashes(stored.capture());
+        assertEquals(rawCodes.size(), stored.getValue().size());
+        for (int i = 0; i < rawCodes.size(); i++) {
+            assertNotEquals(rawCodes.get(i), stored.getValue().get(i));
+            assertTrue(passwordEncoder.matches(rawCodes.get(i), stored.getValue().get(i)));
+        }
     }
 
     private void prepareSecret(String rawSecret) {
