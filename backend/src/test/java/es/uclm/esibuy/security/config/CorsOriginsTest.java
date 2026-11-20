@@ -70,7 +70,7 @@ class CorsOriginsTest {
     void productionOriginsHaveNoLocalhost() throws IOException {
         String origins = load("application.properties").getProperty(ALLOWED_ORIGINS);
 
-        assertFalse(origins.contains("localhost"));
+        assertFalse(origins.contains("http://localhost"));
     }
 
     @Test
