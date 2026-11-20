@@ -56,9 +56,8 @@ public class SecurityConfig {
 
         @Bean
         CookieCsrfTokenRepository csrfTokenRepository(
-                        @Value("${server.servlet.session.cookie.secure:false}") boolean secureCookie,
-                        @Value("${server.servlet.session.cookie.same-site:Lax}") String sameSite) {
-
+                        @Value("${server.servlet.session.cookie.secure}") boolean secureCookie,
+                        @Value("${server.servlet.session.cookie.same-site}") String sameSite) {
                 CookieCsrfTokenRepository repository = CookieCsrfTokenRepository.withHttpOnlyFalse();
 
                 repository.setCookieCustomizer(cookie -> cookie
