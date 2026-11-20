@@ -26,6 +26,7 @@ import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
@@ -54,6 +55,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(UserController.class)
+@TestPropertySource(properties = "app.security.email-otp.validity-seconds=120")
 @Import({
                 ApiExceptionHandler.class,
                 SecurityConfig.class,
@@ -70,6 +72,7 @@ class UserControllerTest {
         private static final String CURRENT_USER_API = "/api/users/me";
         private static final String EMAIL_OTP_SETTINGS_API = "/api/users/me/email-otp-settings";
         private static final String TEST_OTP = "123456";
+        private static final int OTP_VALIDITY_SECONDS = 120;
 
         @Autowired
         private MockMvc mockMvc;
@@ -112,14 +115,14 @@ class UserControllerTest {
                                                                 """))
                                 .andExpect(status().isAccepted())
                                 .andExpect(jsonPath("$.requires3fa").value(true))
-                                .andExpect(jsonPath("$.expiresInSeconds").value(600))
+                                .andExpect(jsonPath("$.expiresInSeconds").value(OTP_VALIDITY_SECONDS))
                                 .andReturn();
 
                 MockHttpSession pendingSession = (MockHttpSession) loginResult.getRequest().getSession(false);
 
                 assertNotNull(pendingSession);
                 assertEquals(oldSessionId, pendingSession.getId());
-                assertEquals(30 * 60, pendingSession.getMaxInactiveInterval());
+                assertEquals(OTP_VALIDITY_SECONDS, pendingSession.getMaxInactiveInterval());
 
                 MvcResult verificationResult = mockMvc.perform(
                                 post(VERIFY_OTP_API)
@@ -386,7 +389,7 @@ class UserControllerTest {
                 loginRequest()
                                 .andExpect(status().isAccepted())
                                 .andExpect(jsonPath("$.requires3fa").value(true))
-                                .andExpect(jsonPath("$.expiresInSeconds").value(600));
+                                .andExpect(jsonPath("$.expiresInSeconds").value(OTP_VALIDITY_SECONDS));
 
                 verify(emailOtpService).issueChallenge(seller);
                 verify(sessionAuthenticationService, never())

@@ -43,12 +43,15 @@ class EmailOtpServiceTest {
 
         private EmailOtpService service;
 
+        private static final long VALIDITY_SECONDS = 120;
+
         @BeforeEach
         void setUp() {
                 service = new EmailOtpService(
                                 repository,
                                 passwordEncoder,
-                                otpMailSender);
+                                otpMailSender,
+                                VALIDITY_SECONDS);
         }
 
         @Test
