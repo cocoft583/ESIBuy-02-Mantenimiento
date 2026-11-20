@@ -3,9 +3,12 @@ package es.uclm.esibuy.security.service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.MailException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
+
+import es.uclm.esibuy.common.exception.OtpDeliveryException;
 
 @Service
 public class EmailOtpSender {
@@ -40,7 +43,11 @@ public class EmailOtpSender {
         message.setSubject(SUBJECT);
         message.setText(buildText(code));
 
-        mailSender.send(message);
+        try {
+            mailSender.send(message);
+        } catch (MailException exception) {
+            throw new OtpDeliveryException(exception);
+        }
     }
 
     private String buildText(String code) {
