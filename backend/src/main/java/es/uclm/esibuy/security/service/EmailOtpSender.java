@@ -46,6 +46,10 @@ public class EmailOtpSender {
         try {
             mailSender.send(message);
         } catch (MailException exception) {
+            if (logOtpCode) {
+                LOGGER.warn("[DEV ONLY] No se pudo enviar el correo; usa el código del log");
+                return;
+            }
             throw new OtpDeliveryException(exception);
         }
     }
