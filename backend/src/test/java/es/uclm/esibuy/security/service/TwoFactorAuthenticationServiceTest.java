@@ -14,6 +14,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.OptionalLong;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -124,13 +125,14 @@ class TwoFactorAuthenticationServiceTest {
     void doesNotConsumeBackupCodeWhenTotpIsValid() {
         List<String> backupCodes = hashed("12345678");
         prepareSecret("raw-secret");
-        when(totpService.verifyCode("raw-secret", "654321")).thenReturn(true);
+        when(totpService.findMatchingTimeStep("raw-secret", "654321")).thenReturn(OptionalLong.of(100));
         when(user.getBackupCodeHashes()).thenReturn(backupCodes);
 
         assertTrue(service.verifyLoginCode(user, "654321"));
 
         assertFalse(backupCodes.isEmpty());
-        verify(userService, never()).save(user);
+        verify(user).setTotpLastUsedStep(100);
+        verify(userService).save(user);
     }
 
     @Test

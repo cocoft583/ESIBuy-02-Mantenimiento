@@ -34,6 +34,7 @@ public class User {
 
     private String totpSecret;
     private boolean totpEnabled = false;
+    private long totpLastUsedStep;
     // Solo el hash BCrypt de cada código: el código en claro se enseña una vez, al generarlo
     private List<String> backupCodeHashes = new ArrayList<>();
     private boolean emailOtpEnabled = false;
@@ -183,6 +184,14 @@ public class User {
 
     public void setTotpEnabled(boolean totpEnabled) {
         this.totpEnabled = totpEnabled;
+    }
+
+    public long getTotpLastUsedStep() {
+        return totpLastUsedStep;
+    }
+
+    public void setTotpLastUsedStep(long totpLastUsedStep) {
+        this.totpLastUsedStep = totpLastUsedStep;
     }
 
     public List<String> getBackupCodeHashes() {
