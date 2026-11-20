@@ -569,6 +569,36 @@ class UserControllerTest {
                 assertEquals(OTP_VALIDITY_SECONDS, pendingSession.getMaxInactiveInterval());
         }
 
+        @Test
+        @DisplayName("HU6-CP03: con el código caducado el paso de verificación se rechaza")
+        void shouldRejectExpiredOtpAndKeepAuthenticationUnauthenticated() throws Exception {
+                User seller = activeSeller();
+                when(userService.login(any(LoginRequest.class))).thenReturn(seller);
+                when(userService.findById(SELLER_ID)).thenReturn(seller);
+
+                doThrow(new es.uclm.esibuy.common.exception.InvalidOtpException())
+                                .when(emailOtpService).verifyChallenge(SELLER_ID, TEST_OTP);
+
+                MvcResult loginResult = loginRequest()
+                                .andExpect(status().isAccepted())
+                                .andReturn();
+
+                MockHttpSession session = (MockHttpSession) loginResult.getRequest().getSession(false);
+                assertNotNull(session);
+
+                mockMvc.perform(post(VERIFY_OTP_API)
+                                .with(csrf())
+                                .session(session)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                                {"code":"123456"}
+                                                """))
+                                .andExpect(status().isUnauthorized());
+
+                verify(sessionAuthenticationService, never())
+                                .authenticate(any(), any(), any());
+        }
+
         private User activeSeller() {
                 User seller = mock(User.class);
 
