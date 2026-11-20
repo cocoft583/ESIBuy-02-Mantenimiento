@@ -599,6 +599,21 @@ class UserControllerTest {
                                 .authenticate(any(), any(), any());
         }
 
+        @Test
+        @DisplayName("HU6-CP04: el desafío para desactivar el OTP informa de la validez configurada")
+        void disableChallengeReportsTheConfiguredOtpValidity() throws Exception {
+                User seller = activeSeller();
+                when(userService.findById(SELLER_ID)).thenReturn(seller);
+
+                mockMvc.perform(post("/api/users/me/email-otp-settings/disable-challenge")
+                                .with(sellerAuthentication())
+                                .with(csrf()))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.expiresInSeconds").value(OTP_VALIDITY_SECONDS));
+
+                verify(emailOtpService).issueDisableChallenge(seller);
+        }
+
         private User activeSeller() {
                 User seller = mock(User.class);
 
