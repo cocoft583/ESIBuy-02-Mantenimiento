@@ -36,6 +36,7 @@ public class User {
     private boolean totpEnabled = false;
     private List<String> backupCodes = new ArrayList<>();
     private boolean emailOtpEnabled = false;
+    private int sessionVersion;
 
     protected User() {
     }
@@ -96,6 +97,10 @@ public class User {
 
     public void setBlocked(boolean blocked) {
         this.blocked = blocked;
+    }
+
+    public int getSessionVersion() {
+        return sessionVersion;
     }
 
     public Instant getCreatedAt() {
