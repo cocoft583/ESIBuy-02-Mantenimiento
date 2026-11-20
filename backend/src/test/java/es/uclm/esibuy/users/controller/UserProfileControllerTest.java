@@ -33,6 +33,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.mockito.Mockito.doNothing;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
 import org.springframework.http.MediaType;
@@ -44,6 +45,8 @@ import es.uclm.esibuy.security.service.EmailOtpService;
 class UserProfileControllerTest {
 
         private static final String PROFILE_API = "/api/users/me/profile";
+
+        private static final String TWO_FACTOR_SETUP_API = "/api/users/2fa/setup";
 
         @Autowired
         private MockMvc mockMvc;
@@ -260,5 +263,58 @@ class UserProfileControllerTest {
                                 .andExpect(status().isForbidden());
 
                 org.mockito.Mockito.verifyNoInteractions(userService);
+        }
+
+        // HU08: el endpoint pasa al servicio el código que llega en el cuerpo
+        @Test
+        void shouldSetupTwoFactorWithCodeFromBody() throws Exception {
+                when(twoFactorAuthenticationService.setup("user-1", "123456"))
+                                .thenReturn(new TwoFactorAuthenticationService.SetupResult(
+                                                TwoFactorAuthenticationService.Status.SUCCESS, "NEWSECRET"));
+
+                mockMvc.perform(post(TWO_FACTOR_SETUP_API)
+                                .with(authentication(authenticationFor(UserRole.CLIENT)))
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                                { "code": "123456" }
+                                                """))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.secret").value("NEWSECRET"))
+                                .andExpect(jsonPath("$.qrUri").value(
+                                                "otpauth://totp/ESIBuy:ana@example.com?secret=NEWSECRET&issuer=ESIBuy"));
+        }
+
+        // La primera configuración no tiene código que pedir: el cuerpo puede no llegar
+        @Test
+        void shouldSetupTwoFactorWithoutBody() throws Exception {
+                when(twoFactorAuthenticationService.setup("user-1", null))
+                                .thenReturn(new TwoFactorAuthenticationService.SetupResult(
+                                                TwoFactorAuthenticationService.Status.SUCCESS, "FIRSTSECRET"));
+
+                mockMvc.perform(post(TWO_FACTOR_SETUP_API)
+                                .with(authentication(authenticationFor(UserRole.CLIENT)))
+                                .with(csrf()))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.secret").value("FIRSTSECRET"));
+        }
+
+        // HU08: si el código no es válido no cambia nada y se dice por qué
+        @Test
+        void shouldRejectTwoFactorReconfigurationWithInvalidCode() throws Exception {
+                when(twoFactorAuthenticationService.setup("user-1", "000000"))
+                                .thenReturn(new TwoFactorAuthenticationService.SetupResult(
+                                                TwoFactorAuthenticationService.Status.INVALID_CODE, null));
+
+                mockMvc.perform(post(TWO_FACTOR_SETUP_API)
+                                .with(authentication(authenticationFor(UserRole.CLIENT)))
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                                { "code": "000000" }
+                                                """))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.message").value("El código introducido es incorrecto"))
+                                .andExpect(jsonPath("$.secret").doesNotExist());
         }
 }

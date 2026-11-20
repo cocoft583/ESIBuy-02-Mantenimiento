@@ -2,8 +2,10 @@ package es.uclm.esibuy.security.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -37,13 +39,65 @@ class TwoFactorAuthenticationServiceTest {
 
     @Test
     void setupGeneratesEncryptsAndPersistsSecret() {
+        when(user.isTotpEnabled()).thenReturn(false);
         when(totpService.generateSecret()).thenReturn("raw-secret");
         when(encryptionService.encrypt("raw-secret")).thenReturn("encrypted-secret");
 
-        String result = service.setup("user-1");
+        TwoFactorAuthenticationService.SetupResult result = service.setup("user-1", null);
 
-        assertEquals("raw-secret", result);
+        assertEquals(TwoFactorAuthenticationService.Status.SUCCESS, result.status());
+        assertEquals("raw-secret", result.secret());
         verify(user).setTotpSecret("encrypted-secret");
+        verify(userService).save(user);
+    }
+
+    // HU08: con el 2FA activo, cambiar la app de autenticación pide un código válido
+    @Test
+    void rejectsReconfigurationWithoutCodeWhenTwoFactorIsEnabled() {
+        when(user.isTotpEnabled()).thenReturn(true);
+
+        TwoFactorAuthenticationService.SetupResult nullCodeResult = service.setup("user-1", null);
+        TwoFactorAuthenticationService.SetupResult blankCodeResult = service.setup("user-1", "  ");
+
+        assertEquals(TwoFactorAuthenticationService.Status.INVALID_CODE, nullCodeResult.status());
+        assertEquals(TwoFactorAuthenticationService.Status.INVALID_CODE, blankCodeResult.status());
+        assertNull(nullCodeResult.secret());
+        assertNull(blankCodeResult.secret());
+
+        verify(totpService, never()).generateSecret();
+        verify(user, never()).setTotpSecret(anyString());
+        verify(userService, never()).save(user);
+    }
+
+    @Test
+    void rejectsReconfigurationWithInvalidCodeWhenTwoFactorIsEnabled() {
+        when(user.isTotpEnabled()).thenReturn(true);
+        prepareSecret("raw-secret");
+        when(totpService.verifyCode("raw-secret", "000000")).thenReturn(false);
+
+        TwoFactorAuthenticationService.SetupResult result = service.setup("user-1", "000000");
+
+        assertEquals(TwoFactorAuthenticationService.Status.INVALID_CODE, result.status());
+        assertNull(result.secret());
+
+        verify(totpService, never()).generateSecret();
+        verify(user, never()).setTotpSecret(anyString());
+        verify(userService, never()).save(user);
+    }
+
+    @Test
+    void reconfiguresWithValidCodeWhenTwoFactorIsEnabled() {
+        when(user.isTotpEnabled()).thenReturn(true);
+        prepareSecret("old-secret");
+        when(totpService.verifyCode("old-secret", "123456")).thenReturn(true);
+        when(totpService.generateSecret()).thenReturn("new-secret");
+        when(encryptionService.encrypt("new-secret")).thenReturn("encrypted-new-secret");
+
+        TwoFactorAuthenticationService.SetupResult result = service.setup("user-1", "123456");
+
+        assertEquals(TwoFactorAuthenticationService.Status.SUCCESS, result.status());
+        assertEquals("new-secret", result.secret());
+        verify(user).setTotpSecret("encrypted-new-secret");
         verify(userService).save(user);
     }
 
@@ -197,25 +251,22 @@ class TwoFactorAuthenticationServiceTest {
         verify(userService).save(user);
     }
 
+    // HU08: antes se regeneraban sin código si no llegaba ninguno; ahora el código es obligatorio
     @Test
-    void regeneratesBackupCodesWithoutRequiringCodeWhenCodeIsNullOrBlank() {
+    void rejectsRegenerationWhenCodeIsNullOrBlank() {
         when(user.isTotpEnabled()).thenReturn(true);
-        List<String> generatedCodes = List.of("11111111");
-        when(totpService.generateBackupCodes(8)).thenReturn(generatedCodes);
 
         TwoFactorAuthenticationService.BackupCodesResult nullCodeResult = service.regenerateBackupCodes("user-1", null);
-
-        assertEquals(TwoFactorAuthenticationService.Status.SUCCESS,
-                nullCodeResult.status());
-
         TwoFactorAuthenticationService.BackupCodesResult blankCodeResult = service.regenerateBackupCodes("user-1",
                 "  ");
 
-        assertEquals(TwoFactorAuthenticationService.Status.SUCCESS,
-                blankCodeResult.status());
+        assertEquals(TwoFactorAuthenticationService.Status.INVALID_CODE, nullCodeResult.status());
+        assertEquals(TwoFactorAuthenticationService.Status.INVALID_CODE, blankCodeResult.status());
+        assertTrue(nullCodeResult.backupCodes().isEmpty());
+        assertTrue(blankCodeResult.backupCodes().isEmpty());
 
-        verify(encryptionService, never()).decrypt(org.mockito.ArgumentMatchers.any());
-        verify(userService, org.mockito.Mockito.times(2)).save(user);
+        verify(totpService, never()).generateBackupCodes(8);
+        verify(userService, never()).save(user);
     }
 
     @Test
