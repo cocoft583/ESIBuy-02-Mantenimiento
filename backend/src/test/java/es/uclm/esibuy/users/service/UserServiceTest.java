@@ -342,7 +342,7 @@ class UserServiceTest {
         }
 
         @Test
-        void shouldRejectLoginWhenAccountIsInactive() {
+        void shouldRejectLoginWhenAccountIsInactiveAndPasswordIsWrong() {
                 LoginRequest request = new LoginRequest();
                 request.setEmail("seller@example.com");
                 request.setPassword("Password123!");
@@ -353,6 +353,7 @@ class UserServiceTest {
 
                 when(userRepository.findByEmailIgnoreCase("seller@example.com"))
                                 .thenReturn(java.util.Optional.of(seller));
+                when(passwordEncoder.matches("Password123!", "hashed-pwd")).thenReturn(false);
 
                 assertThrows(InvalidCredentialsException.class, () -> userService.login(request));
         }

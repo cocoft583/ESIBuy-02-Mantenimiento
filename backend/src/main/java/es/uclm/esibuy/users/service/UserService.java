@@ -11,6 +11,7 @@ import es.uclm.esibuy.auth.passwordreset.repository.PasswordResetTokenRepository
 import es.uclm.esibuy.cart.model.Cart;
 import es.uclm.esibuy.cart.repository.CartRepository;
 import es.uclm.esibuy.configuration.service.GeneralConfigurationService;
+import es.uclm.esibuy.common.exception.AccountPendingException;
 import es.uclm.esibuy.common.exception.DuplicateUserException;
 import es.uclm.esibuy.common.exception.InvalidCredentialsException;
 import es.uclm.esibuy.common.exception.UserDeletionConflictException;
@@ -178,13 +179,17 @@ public class UserService {
     public User login(LoginRequest request) {
         String email = request.getEmail().trim().toLowerCase(Locale.ROOT);
         User user = userRepository.findByEmailIgnoreCase(email)
-                .filter(candidate -> candidate.isActive()
-                        && !candidate.isBlocked()
+                .filter(candidate -> !candidate.isBlocked()
                         && candidate.getPasswordHash() != null)
                 .orElseThrow(InvalidCredentialsException::new);
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
             throw new InvalidCredentialsException();
+        }
+
+        // Con la contraseña correcta, una cuenta inactiva espera la aprobación de un administrador
+        if (!user.isActive()) {
+            throw new AccountPendingException();
         }
 
         if (passwordEncoder.upgradeEncoding(user.getPasswordHash())) {
