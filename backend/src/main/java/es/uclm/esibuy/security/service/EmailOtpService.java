@@ -10,6 +10,7 @@ import es.uclm.esibuy.common.exception.InvalidOtpException;
 import es.uclm.esibuy.security.model.EmailOtpChallenge;
 import es.uclm.esibuy.security.repository.EmailOtpChallengeRepository;
 import es.uclm.esibuy.users.model.User;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -19,7 +20,6 @@ public class EmailOtpService {
     private static final int OTP_LENGTH = 6;
     private static final int OTP_BOUND = 1_000_000;
     private static final int MAX_ATTEMPTS = 5;
-    private static final Duration OTP_VALIDITY = Duration.ofMinutes(10);
 
     private static final String LOGIN = "LOGIN";
     private static final String DISABLE_EMAIL_OTP = "DISABLE_EMAIL_OTP";
@@ -27,15 +27,18 @@ public class EmailOtpService {
     private final EmailOtpChallengeRepository repository;
     private final PasswordEncoder passwordEncoder;
     private final EmailOtpSender otpMailSender;
+    private final Duration otpValidity;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public EmailOtpService(
             EmailOtpChallengeRepository repository,
             PasswordEncoder passwordEncoder,
-            EmailOtpSender otpMailSender) {
+            EmailOtpSender otpMailSender,
+            @Value("${app.security.email-otp.validity-seconds}") long validitySeconds) {
         this.repository = repository;
         this.passwordEncoder = passwordEncoder;
         this.otpMailSender = otpMailSender;
+        this.otpValidity = Duration.ofSeconds(validitySeconds);
     }
 
     public void issueChallenge(User user) {
@@ -57,7 +60,7 @@ public class EmailOtpService {
         EmailOtpChallenge challenge = new EmailOtpChallenge(
                 user.getId(),
                 passwordEncoder.encode(code),
-                Instant.now().plus(OTP_VALIDITY),
+                Instant.now().plus(otpValidity),
                 purpose);
 
         repository.save(challenge);
