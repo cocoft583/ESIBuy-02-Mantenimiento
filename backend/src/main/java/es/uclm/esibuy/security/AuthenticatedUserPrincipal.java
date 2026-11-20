@@ -9,7 +9,13 @@ public record AuthenticatedUserPrincipal(
         String id,
         String email,
         UserRole role,
-        boolean active) implements AuthenticatedPrincipal, Serializable {
+        boolean active,
+        int sessionVersion) implements AuthenticatedPrincipal, Serializable {
+
+    // Mantiene la firma anterior, que usan los tests de los controladores
+    public AuthenticatedUserPrincipal(String id, String email, UserRole role, boolean active) {
+        this(id, email, role, active, 0);
+    }
 
     @Override
     public String getName() {

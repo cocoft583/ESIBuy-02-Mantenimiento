@@ -38,7 +38,8 @@ public class SessionAuthenticationService {
                                 ? List.of()
                                 : List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
                 AuthenticatedUserPrincipal principal = new AuthenticatedUserPrincipal(
-                                user.getId(), user.getEmail(), user.getRole(), user.isActive());
+                                user.getId(), user.getEmail(), user.getRole(), user.isActive(),
+                                user.getSessionVersion());
                 SecurityContext context = SecurityContextHolder.createEmptyContext();
                 context.setAuthentication(UsernamePasswordAuthenticationToken.authenticated(
                                 principal, null, authorities));

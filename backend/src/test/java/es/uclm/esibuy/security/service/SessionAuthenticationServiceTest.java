@@ -115,6 +115,25 @@ class SessionAuthenticationServiceTest {
                 .saveContext(context, request, response);
     }
 
+    @Test
+    void copiesSessionVersionIntoPrincipal() {
+        User user = mock(User.class);
+
+        when(user.getId()).thenReturn("user-3");
+        when(user.getEmail()).thenReturn("version@example.com");
+        when(user.getRole()).thenReturn(UserRole.CLIENT);
+        when(user.isActive()).thenReturn(true);
+        when(user.getSessionVersion()).thenReturn(3);
+
+        service.authenticate(user, request, response);
+
+        AuthenticatedUserPrincipal principal = assertInstanceOf(
+                AuthenticatedUserPrincipal.class,
+                SecurityContextHolder.getContext().getAuthentication().getPrincipal());
+
+        assertEquals(3, principal.sessionVersion());
+    }
+
     private void assertTrueAuthoritiesAreEmpty(Authentication authentication) {
         org.junit.jupiter.api.Assertions.assertTrue(
                 authentication.getAuthorities().isEmpty());

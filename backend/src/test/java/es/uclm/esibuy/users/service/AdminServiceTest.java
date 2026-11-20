@@ -248,4 +248,26 @@ class AdminServiceTest {
         verify(passwordEncoder, never()).encode(any());
     }
 
+    @Test
+    void blockUserRevokesOpenSessions() {
+        User user = new User("cliente@esibuy.com", "Ana", "López", UserRole.CLIENT);
+        when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
+
+        adminService.blockUser("user-1");
+
+        assertEquals(1, user.getSessionVersion());
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    void deactivateUserRevokesOpenSessions() {
+        User user = new User("cliente@esibuy.com", "Ana", "López", UserRole.CLIENT);
+        when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
+
+        adminService.deactivateUser("user-1");
+
+        assertEquals(1, user.getSessionVersion());
+        verify(userRepository).save(user);
+    }
+
 }
