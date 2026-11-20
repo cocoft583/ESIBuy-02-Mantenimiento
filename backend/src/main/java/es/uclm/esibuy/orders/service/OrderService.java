@@ -782,11 +782,16 @@ public class OrderService {
 
     private void restoreCancelledOrderStock(List<OrderItem> items) {
         for (OrderItem item : items) {
-            Product product = productRepository.findById(item.productId())
-                    .orElseThrow(() -> new IllegalStateException(
-                            "No se pudo encontrar el producto para reponer el stock"));
-            product.setStock(product.getStock() + item.quantity());
-            productRepository.save(product);
+            Product restoredProduct = mongoTemplate.findAndModify(
+                    Query.query(Criteria.where("_id").is(item.productId())),
+                    new Update().inc(STOCK_FIELD, item.quantity()),
+                    FindAndModifyOptions.options().returnNew(true),
+                    Product.class);
+
+            if (restoredProduct == null) {
+                throw new IllegalStateException(
+                        "No se pudo encontrar el producto para reponer el stock");
+            }
         }
     }
 
