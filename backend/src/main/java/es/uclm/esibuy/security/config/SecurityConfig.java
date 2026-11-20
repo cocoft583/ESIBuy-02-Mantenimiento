@@ -60,8 +60,8 @@ public class SecurityConfig {
 
         @Bean
         CookieCsrfTokenRepository csrfTokenRepository(
-                        @Value("${server.servlet.session.cookie.secure:false}") boolean secureCookie,
-                        @Value("${server.servlet.session.cookie.same-site:Lax}") String sameSite) {
+                        @Value("${server.servlet.session.cookie.secure}") boolean secureCookie,
+                        @Value("${server.servlet.session.cookie.same-site}") String sameSite) {
 
                 CookieCsrfTokenRepository repository = CookieCsrfTokenRepository.withHttpOnlyFalse();
 
@@ -191,16 +191,10 @@ public class SecurityConfig {
         }
 
         @Bean
-        CorsConfigurationSource corsConfigurationSource() {
+        CorsConfigurationSource corsConfigurationSource(
+                        @Value("${esibuy.security.cors.allowed-origins}") String[] allowedOrigins) {
                 CorsConfiguration configuration = new CorsConfiguration();
-                configuration.setAllowedOrigins(List.of(
-                                "http://localhost:3000",
-                                "http://localhost:5173",
-                                "http://localhost:4200",
-                                "https://esibuy-2627.web.app",
-                                "https://esibuy-2627.firebaseapp.com",
-                                "https://localhost",          // app Android (Capacitor)
-                                "capacitor://localhost"));    // app iOS (Capacitor)
+                configuration.setAllowedOrigins(List.of(allowedOrigins));
                 configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
                 configuration.setAllowedHeaders(List.of("*"));
                 configuration.setExposedHeaders(
