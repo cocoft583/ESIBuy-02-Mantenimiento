@@ -570,8 +570,8 @@ class UserControllerTest {
         }
 
         @Test
-        @DisplayName("HU6-CP03: con el código caducado el paso de verificación se rechaza")
-        void shouldRejectExpiredOtpAndKeepAuthenticationUnauthenticated() throws Exception {
+        @DisplayName("HU6-CP03: el controlador responde 401 y no autentica cuando el OTP es rechazado")
+        void shouldRespondUnauthorizedWithoutAuthenticatingWhenOtpIsRejected() throws Exception {
                 User seller = activeSeller();
                 when(userService.login(any(LoginRequest.class))).thenReturn(seller);
                 when(userService.findById(SELLER_ID)).thenReturn(seller);
