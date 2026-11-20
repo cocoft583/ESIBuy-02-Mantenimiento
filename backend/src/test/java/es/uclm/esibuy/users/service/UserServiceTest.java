@@ -2,6 +2,7 @@ package es.uclm.esibuy.users.service;
 
 import java.time.LocalDate;
 
+import es.uclm.esibuy.common.exception.AccountPendingException;
 import es.uclm.esibuy.common.exception.DuplicateUserException;
 import es.uclm.esibuy.common.exception.InvalidCredentialsException;
 import es.uclm.esibuy.configuration.service.GeneralConfigurationService;
@@ -24,6 +25,7 @@ import es.uclm.esibuy.security.repository.EmailOtpChallengeRepository;
 import es.uclm.esibuy.auth.passwordreset.repository.PasswordResetTokenRepository;
 import es.uclm.esibuy.security.repository.LoginAttemptRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -356,6 +358,26 @@ class UserServiceTest {
                 when(passwordEncoder.matches("Password123!", "hashed-pwd")).thenReturn(false);
 
                 assertThrows(InvalidCredentialsException.class, () -> userService.login(request));
+        }
+
+        @Test
+        @DisplayName("HU17-CP01: con la contraseña correcta y la cuenta pendiente se avisa de que espera aprobación")
+        void shouldReportPendingApprovalWhenAccountIsInactiveAndPasswordIsCorrect() {
+                LoginRequest request = new LoginRequest();
+                request.setEmail("seller@example.com");
+                request.setPassword("Password123!");
+
+                User seller = new User("seller@example.com", "Carlos", "Lopez", UserRole.SELLER);
+                seller.setActive(false);
+                seller.setPasswordHash("hashed-pwd");
+
+                when(userRepository.findByEmailIgnoreCase("seller@example.com"))
+                                .thenReturn(java.util.Optional.of(seller));
+                when(passwordEncoder.matches("Password123!", "hashed-pwd")).thenReturn(true);
+
+                assertThrows(AccountPendingException.class, () -> userService.login(request));
+
+                verify(userRepository, never()).save(any(User.class));
         }
 
         @Test
