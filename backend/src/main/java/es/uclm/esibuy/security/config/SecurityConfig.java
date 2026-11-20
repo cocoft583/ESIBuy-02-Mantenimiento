@@ -186,7 +186,8 @@ public class SecurityConfig {
                 CorsConfiguration configuration = new CorsConfiguration();
                 configuration.setAllowedOrigins(List.of(allowedOrigins));
                 configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-                configuration.setAllowedHeaders(List.of("*"));                configuration.setExposedHeaders(
+                configuration.setAllowedHeaders(List.of("*"));
+                configuration.setExposedHeaders(
                                 List.of("Retry-After", CorrelationIdFilter.HEADER, "X-CSRF-TOKEN", "X-XSRF-TOKEN"));
                 configuration.setAllowCredentials(true);
 

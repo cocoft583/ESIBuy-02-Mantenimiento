@@ -33,9 +33,9 @@ Hay dos formatos y los dos llevan **el AB# de la task en el cuerpo** (segundo `-
    - si sigue sin estar claro, pregunta. Nunca inventes un número ni dejes `AB#ID`.
 4. Elige el formato según la tabla y redacta el asunto.
 5. Prepara solo los archivos de ese cambio, con rutas explícitas (`git add <ruta> <ruta>`). Nunca `git add -A` ni `git add .`: en la carpeta suele haber archivos sin seguimiento de otras tareas.
-6. Enseña al usuario el comando completo en PowerShell, desde la raíz del repo:
-   ```powershell
-   cd C:\ruta\al\repo
+6. Enseña al usuario el comando completo, desde la raíz del repo. Vale igual en bash, zsh y PowerShell:
+   ```
+   cd "$(git rev-parse --show-toplevel)"
    git add <rutas>
    git commit -m "<asunto>" -m "AB#<task>"
    ```

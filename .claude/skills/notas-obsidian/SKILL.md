@@ -1,44 +1,114 @@
 ---
 name: notas-obsidian
-description: Documenta en el vault de Obsidian del equipo de mantenimiento de ESIBuy las decisiones, explicaciones y cambios de alcance, sin duplicar notas. Úsalo SOLO si el CLAUDE.local.md del usuario configura el vault, o si el usuario lo pide expresamente.
+description: Documenta en Obsidian decisiones importantes y explicaciones del mantenimiento de ESIBuy para el aprendizaje personal de cada desarrollador. Úsalo SOLO si el CLAUDE.local.md del usuario configura esta skill (vault y carpeta), o si el usuario la invoca explícitamente con /notas-obsidian. Si no hay configuración, no la propongas.
 ---
 
-Escribe en el vault de Obsidian del usuario las decisiones importantes, las explicaciones que pida y los cambios en las notas del mantenimiento. No forma parte del repo: el vault es aparte.
+Documenta en el vault de Obsidian del usuario las decisiones importantes y las explicaciones que pida, para su entendimiento propio. Las notas son personales: no forman parte del repo.
 
-Argumentos recibidos (opcional): $ARGUMENTS. El tema o el contenido.
+Argumentos recibidos (opcional): $ARGUMENTS — tema o contenido a anotar, en formato libre.
 
 ## Configuración
 
-Va en el `CLAUDE.local.md` de cada desarrollador (no versionado):
+La configuración es personal y vive en el `CLAUDE.local.md` de cada desarrollador (no versionado). Esta skill no lleva ninguna ruta: todas salen de ahí. Debe indicar:
 
-- **Ruta del vault** (p. ej. `C:\Users\<usuario>\Documents\Obsidian\ESIBuy (práctica integrada)`).
-- **Carpetas**: `Info/` para notas de trabajo, `Entregables/` para los Word y PDF, `Copias/` para versiones anteriores.
-- **Disparo automático**: si se proponen notas solas o solo cuando se piden.
+- **Vault**: nombre del vault de Obsidian (el que muestra `obsidian vaults`).
+- **Carpeta base** dentro del vault, con las subcarpetas `Decisiones/` y `Conceptos/`.
+- **Nota de registro** (opcional): nota donde se enlaza cada nota creada o ampliada, agrupada por fecha.
+- **Disparo automático**: `sí` o `no`.
+- **Ruta del vault en disco** (opcional): solo si no se usa el Obsidian CLI (ver «Cómo escribir»).
+- **Reglas propias** (opcional): otras carpetas (reuniones, entregables, copias...), notas que ya existen o carpetas que no se tocan. Respétalas igual que las de esta skill.
 
-Si no hay configuración y el usuario invoca la skill, pregunta la ruta. No inventes rutas.
+Si no hay configuración en el contexto y el usuario invoca la skill a mano, pregunta el vault y la carpeta antes de nada. No inventes rutas ni nombres de vault.
+
+## Cuándo proponer una nota (si el CLAUDE.local.md activa el disparo automático)
+
+- **Decisión importante**: arquitectura, diseño, elección de librerías o patrones, trade-offs, convenciones acordadas con el equipo, cambios de alcance.
+- **Explicación**: el usuario pide que le expliques o documentes algo (un concepto del stack, por qué funciona algo, cómo encaja una pieza).
+
+No propongas notas para cambios triviales ni para cosas que ya están en el repo (código, historial de git, skills).
 
 ## Cómo escribir
 
-- Si el `obsidian` CLI está disponible y Obsidian abierto, úsalo (`search`, `create`, `append`; nunca `overwrite`). Si no, escribe el `.md` directamente en la carpeta del vault.
-- **Busca antes** una nota del mismo tema para ampliarla en vez de duplicarla.
-- Las notas del vault siguen este formato: frontmatter con `tags`, `fecha` y `estado` (p. ej. `borrador v6.1`), títulos y texto en español, enlaces `[[...]]` a notas que existen y callouts de Obsidian (`> [!note]`).
-- Al cambiar una nota con versión, sube el número en `estado` y añade arriba un apartado «Qué cambia en la vX.Y (dd/mm)» con lo que cambia y por qué.
-- Antes de un cambio grande, guarda una copia de la versión anterior en `Copias/`.
-- Si el cambio afecta a un entregable de `Entregables/` (análisis, alcance, HU y tasks), dilo y pregunta si se regenera.
+- Con el **Obsidian CLI** si está instalado y Obsidian está abierto (comandos de abajo). Es igual en Windows, macOS y Linux.
+- Si no hay CLI, escribe el `.md` directamente en la **ruta del vault en disco** del `CLAUDE.local.md`. Si no está configurada, pregúntala.
 
-## Flujo
+## Flujo: proponer y confirmar
 
-1. Enseña el borrador (nota nueva o ampliación, carpeta y contenido).
-2. Espera un OK explícito.
-3. Escribe y di qué se ha escrito y dónde.
+1. **Busca si ya existe** una nota del mismo tema para ampliarla en lugar de duplicarla:
+   `obsidian vault="<vault>" search query="<tema>" path="<carpeta base>"`
+2. **Muestra el borrador** al usuario en el chat: título, carpeta destino (`Decisiones/` o `Conceptos/`), si es nota nueva o ampliación, y el contenido completo.
+3. **Espera un OK explícito**. Si pide cambios, ajusta y vuelve a mostrarlo. Nunca escribas en el vault sin confirmación.
+4. **Escribe la nota**:
+   - Nueva: `obsidian vault="<vault>" create path="<carpeta base>/<Decisiones|Conceptos>/<Título>.md" content="..."`
+   - Ampliación: `obsidian vault="<vault>" append path="<ruta exacta>" content="..."`
+   - Nunca uses `overwrite`.
+5. **Enlázala en la nota de registro**, si está configurada:
+   - Léela con `read`. Si no existe, créala con `create` y un encabezado `# <nombre de la nota>`.
+   - Si no hay sección del día, añádela: `obsidian vault="<vault>" append path="<nota de registro>" content="\n## <YYYY-MM-DD>"`
+   - Añade la entrada: `obsidian vault="<vault>" append path="<nota de registro>" content="- [[<Título>]] — <resumen de una línea>"`
+   - No uses la nota diaria de Obsidian (`daily:*`): su ruta y formato dependen de la configuración de cada vault.
+6. **Verifica y reporta** al usuario qué se ha escrito y dónde:
+   - Una escritura es correcta si el CLI responde `Created:` (en `create`) o termina sin error (en `append`).
+   - Obsidian tarda unos segundos en registrar un archivo recién creado: un `read` inmediato puede responder "not found" aunque el archivo exista. No lo trates como error ni repitas el `create`; espera unos segundos y vuelve a hacer `obsidian vault="<vault>" read path="<ruta exacta>"`.
+   - Esto también aplica al paso 5: si acabas de crear la nota de registro, no la leas en ese momento para comprobar la sección del día.
 
-## Notas que ya existen
+Notas sobre el CLI: los valores con espacios van entre comillas; en `content` los saltos de línea se escriben como `\n`. Ignora en la salida los avisos de "Loading updated app package" y "installer is out of date". Obsidian debe estar abierto para que el CLI funcione.
 
-| Nota | Qué tiene |
-|---|---|
-| `Info/2026-11-10 Análisis crítico del proyecto heredado` | los 41 hallazgos y la trazabilidad hallazgo → HU |
-| `Info/2026-11-11 Sprint 3 - historias de usuario (evolutivo y correctivo)` | las 30 HU del alcance acordado con el PO, con tasks, horas y estado |
-| `Info/2026-11-11 Fallos en PBI y tasks de Azure (heredado)` | los fallos del backlog del otro equipo |
-| `Info/Pendientes (mantenimiento)` | lista viva de lo que queda |
+## Plantillas
 
-Si un dato (rama, HU, fecha) no se puede obtener, se omite en vez de inventarlo.
+Títulos en español, descriptivos y sin prefijos de fecha. Enlaza con `[[...]]` los conceptos relacionados que ya existan en el vault (compruébalo con `search`).
+
+### Decisión (`Decisiones/`)
+
+```markdown
+---
+tipo: decision
+fecha: <YYYY-MM-DD>
+rama: <rama de git actual>
+hu: <HUxx (AB#<pbi>) si se conoce, si no omitir>
+tags: [esibuy-mantenimiento, decision]
+---
+
+# <Título de la decisión>
+
+## Contexto
+<Qué problema había y por qué hubo que decidir.>
+
+## Decisión
+<Qué se decidió, en una o dos frases.>
+
+## Alternativas consideradas
+- **<Alternativa>**: <por qué no se eligió>
+
+## Trade-offs
+<Qué se gana y qué se pierde con la decisión.>
+
+## Relacionado
+- [[<Concepto o decisión relacionada>]]
+```
+
+### Concepto (`Conceptos/`)
+
+```markdown
+---
+tipo: concepto
+fecha: <YYYY-MM-DD>
+tags: [esibuy-mantenimiento, concepto]
+---
+
+# <Nombre del concepto>
+
+## Qué es
+<Explicación breve y clara, sin asumir conocimiento previo del stack.>
+
+## Cómo se aplica en el mantenimiento de ESIBuy
+<Dónde aparece en el proyecto, con rutas de archivo si ayudan.>
+
+## Ejemplo
+<Fragmento de código o caso concreto.>
+
+## Relacionado
+- [[<Otro concepto>]]
+```
+
+Si los datos (rama, HU, fecha) no se pueden obtener, omite el campo en lugar de inventarlo.

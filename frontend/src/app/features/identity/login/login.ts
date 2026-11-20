@@ -61,6 +61,9 @@ export class Login implements OnDestroy {
     if (this.route.snapshot.queryParamMap.get('expired') === 'true') {
       this.serverError = 'Tu sesión ha expirado';
     }
+    if (this.route.snapshot.queryParamMap.get('revoked') === 'true') {
+      this.serverError = 'Tu sesión se ha cerrado porque ha cambiado el estado de tu cuenta. Vuelve a iniciar sesión.';
+    }
     if (this.route.snapshot.queryParamMap.get('deleted') === 'true') {
       this.successMessage = 'Tu cuenta se ha eliminado correctamente.';
     }

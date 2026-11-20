@@ -127,6 +127,7 @@ public class AdminService {
                 .orElseThrow(() -> new UserNotFoundException(MSG_USER_NOT_FOUND));
 
         user.setActive(false);
+        user.revokeSessions();
         userRepository.save(user);
     }
 
@@ -137,6 +138,7 @@ public class AdminService {
         // Bloquear implica también desactivar la cuenta
         user.setActive(false);
         user.setBlocked(true);
+        user.revokeSessions();
         userRepository.save(user);
     }
 
