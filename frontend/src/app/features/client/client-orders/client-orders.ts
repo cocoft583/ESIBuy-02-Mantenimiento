@@ -3,6 +3,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ReviewsService } from '../../../core/services/reviews.service';
+import { AppSidebarComponent } from '../../../shared/app-sidebar/app-sidebar';
 import {
   CustomerOrder,
   CustomerOrderFulfillmentStatus,
@@ -20,7 +21,7 @@ type PaymentStatusFilter = CustomerOrderPaymentStatus | 'TODOS';
 @Component({
   selector: 'app-client-orders',
   standalone: true,
-  imports: [FormsModule, RouterLink],
+  imports: [AppSidebarComponent, FormsModule, RouterLink],
   templateUrl: './client-orders.html',
   styleUrl: './client-orders.css',
 })
@@ -38,7 +39,6 @@ export class ClientOrders implements OnInit {
   readonly sidebarCollapsed = signal(
     typeof localStorage !== 'undefined' && localStorage.getItem('client-sidebar-collapsed') === 'true'
   );
-  animateTransition = false;
   readonly orders = signal<CustomerOrder[]>([]);
   readonly showingTransactions = signal(false);
   readonly shippingAddressOrderId = signal<string | null>(null);
@@ -336,12 +336,6 @@ export class ClientOrders implements OnInit {
     this.hideShippingAddress(orderId);
   }
 
-  toggleSidebar(): void {
-    this.animateTransition = true;
-    const collapsed = !this.sidebarCollapsed();
-    this.sidebarCollapsed.set(collapsed);
-    localStorage.setItem('client-sidebar-collapsed', String(collapsed));
-  }
 
   searchOrders(): void {
     this.searchQuery.update((query) => query.trim());

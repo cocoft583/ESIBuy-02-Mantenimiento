@@ -6,6 +6,7 @@ import { RouterLink } from '@angular/router';
 import { Observable } from 'rxjs';
 import { CartItem, CartResponse, CartService } from '../../../core/services/cart.service';
 import { CheckoutSummary, ConfirmedOrder, PedidoService } from '../../../core/services/pedido.service';
+import { AppSidebarComponent } from '../../../shared/app-sidebar/app-sidebar';
 
 export interface SellerCartGroup {
   vendedorId: string;
@@ -18,7 +19,7 @@ export interface SellerCartGroup {
 @Component({
   selector: 'app-client-cart',
   standalone: true,
-  imports: [FormsModule, RouterLink],
+  imports: [AppSidebarComponent, FormsModule, RouterLink],
   templateUrl: './cart.html',
   styleUrl: './cart.css',
 })
@@ -28,7 +29,6 @@ export class ClientCart {
   readonly sidebarCollapsed = signal(
     typeof localStorage !== 'undefined' && localStorage.getItem('client-sidebar-collapsed') === 'true'
   );
-  animateTransition = false;
   readonly busyItemIds = signal<ReadonlySet<string>>(new Set());
   readonly actionError = signal<string | null>(null);
   readonly checkoutOpen = signal(false);
@@ -40,12 +40,6 @@ export class ClientCart {
   readonly selectedPaymentMethodId = signal('');
   readonly userSelectedProductIds = signal<ReadonlySet<string> | null>(null);
 
-  toggleSidebar(): void {
-    this.animateTransition = true;
-    const collapsed = !this.sidebarCollapsed();
-    this.sidebarCollapsed.set(collapsed);
-    localStorage.setItem('client-sidebar-collapsed', String(collapsed));
-  }
 
   private readonly currencyFormatter = new Intl.NumberFormat('es-ES', {
     style: 'currency',

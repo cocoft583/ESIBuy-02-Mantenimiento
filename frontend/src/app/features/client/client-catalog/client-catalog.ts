@@ -6,13 +6,14 @@ import { WishlistService } from '../../../core/services/wishlist.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { CartService } from '../../../core/services/cart.service';
 import { AuthService } from '../../../core/services/auth.service';
+import { AppSidebarComponent } from '../../../shared/app-sidebar/app-sidebar';
 
 const LOW_STOCK_THRESHOLD = 5;
 
 @Component({
   selector: 'app-client-catalog',
   standalone: true,
-  imports: [FormsModule, RouterLink],
+  imports: [AppSidebarComponent, FormsModule, RouterLink],
   templateUrl: './client-catalog.html',
   styleUrl: './client-catalog.css',
 })
@@ -28,14 +29,7 @@ export class ClientCatalog implements OnInit {
   readonly sidebarCollapsed = signal(
     typeof localStorage !== 'undefined' && localStorage.getItem('client-sidebar-collapsed') === 'true'
   );
-  animateTransition = false;
 
-  toggleSidebar(): void {
-    this.animateTransition = true;
-    const collapsed = !this.sidebarCollapsed();
-    this.sidebarCollapsed.set(collapsed);
-    localStorage.setItem('client-sidebar-collapsed', String(collapsed));
-  }
 
   addToCart(product: ProductItem, event: Event): void {
     event.stopPropagation();
