@@ -1,7 +1,6 @@
 package es.uclm.esibuy.cart.service;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.List;
 
 import es.uclm.esibuy.cart.dto.AddCartItemDTO;
@@ -16,6 +15,8 @@ import es.uclm.esibuy.common.exception.ProductoNoDisponibleException;
 import es.uclm.esibuy.common.exception.StockInsuficienteException;
 import es.uclm.esibuy.products.model.Product;
 import es.uclm.esibuy.products.repository.ProductRepository;
+import es.uclm.esibuy.products.service.ProductPricing;
+import es.uclm.esibuy.products.service.ProductPricing.Discount;
 import es.uclm.esibuy.users.model.CustomerType;
 import es.uclm.esibuy.users.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -64,7 +65,7 @@ public class CartService {
         validateStock(cart, product, request.quantity());
 
         boolean isPremium = isPremiumCustomer(customerId);
-        BigDecimal effectivePrice = calculateEffectivePrice(product, isPremium);
+        BigDecimal effectivePrice = ProductPricing.effectivePrice(product, isPremium);
 
         cart.addOrIncrementItem(
                 product.getId(),
@@ -205,7 +206,10 @@ public class CartService {
                         .multiply(BigDecimal.valueOf(item.quantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal totalPrice = cart.getTotalPrice();
+        // El total sale de los precios de ahora, no del importe guardado al añadir
+        BigDecimal totalPrice = items.stream()
+                .map(CartItemDTO::subtotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal totalDiscount = totalBeforeDiscount.compareTo(totalPrice) > 0
                 ? totalBeforeDiscount.subtract(totalPrice)
@@ -221,15 +225,16 @@ public class CartService {
     }
 
     private CartItemDTO toCartItemDTO(CartItem item, boolean isPremium) {
-        DiscountInfo noDiscount = new DiscountInfo(BigDecimal.ZERO, false);
+        // Sin producto que consultar, la línea conserva el precio guardado al añadirla
+        ItemPricing storedPricing = new ItemPricing(item.getUnitPrice(), item.getUnitPrice(), Discount.none());
 
         if (item.getProductId() == null) {
-            return createCartItemDTO(item, item.getImageUrl(), null, null, item.getUnitPrice(), noDiscount, null);
+            return createCartItemDTO(item, item.getImageUrl(), null, null, storedPricing, null);
         }
 
         Product product = productRepository.findById(item.getProductId()).orElse(null);
         if (product == null) {
-            return createCartItemDTO(item, item.getImageUrl(), null, null, item.getUnitPrice(), noDiscount, null);
+            return createCartItemDTO(item, item.getImageUrl(), null, null, storedPricing, null);
         }
 
         String imageUrl = (item.getImageUrl() != null && !item.getImageUrl().isBlank())
@@ -237,15 +242,22 @@ public class CartService {
                 : product.getImageUrl();
         String sellerId = product.getSellerId();
         String sellerName = resolveSellerName(sellerId);
-        DiscountInfo discountInfo = resolveDiscount(product, isPremium);
+
+        // El precio de la línea es el que tiene el producto ahora para este tipo de cliente
+        // (si el producto no tiene precio, por datos antiguos, se conserva el guardado)
+        ItemPricing currentPricing = product.getPrice() == null
+                ? storedPricing
+                : new ItemPricing(
+                        ProductPricing.effectivePrice(product, isPremium),
+                        product.getPrice(),
+                        ProductPricing.resolveDiscount(product, isPremium));
 
         return createCartItemDTO(
                 item,
                 imageUrl,
                 sellerId,
                 sellerName,
-                product.getPrice(),
-                discountInfo,
+                currentPricing,
                 product.getStock());
     }
 
@@ -254,48 +266,24 @@ public class CartService {
             String imageUrl,
             String sellerId,
             String sellerName,
-            BigDecimal originalPrice,
-            DiscountInfo discountInfo,
+            ItemPricing pricing,
             Integer availableStock) {
         return new CartItemDTO(
                 item.getProductId(),
                 item.getName(),
-                item.getUnitPrice(),
+                pricing.unitPrice(),
                 item.getQuantity(),
-                item.getSubtotal(),
+                pricing.unitPrice().multiply(BigDecimal.valueOf(item.getQuantity())),
                 imageUrl,
                 sellerId,
                 sellerName,
-                originalPrice,
-                discountInfo.discount(),
-                discountInfo.isPremiumDiscount(),
+                pricing.originalPrice(),
+                pricing.discount().percentage(),
+                pricing.discount().premiumApplied(),
                 availableStock);
     }
 
-    private record DiscountInfo(BigDecimal discount, boolean isPremiumDiscount) {
-    }
-
-    private DiscountInfo resolveDiscount(Product product, boolean isPremium) {
-        if (product == null) {
-            return new DiscountInfo(BigDecimal.ZERO, false);
-        }
-
-        BigDecimal standardDiscount = (product.getDiscount() != null
-                && product.getDiscount().compareTo(BigDecimal.ZERO) > 0)
-                ? product.getDiscount()
-                : BigDecimal.ZERO;
-        BigDecimal premiumDiscount = (product.getPremiumDiscount() != null
-                && product.getPremiumDiscount().compareTo(BigDecimal.ZERO) > 0)
-                ? product.getPremiumDiscount()
-                : BigDecimal.ZERO;
-
-        if (isPremium) {
-            BigDecimal totalDiscount = standardDiscount.add(premiumDiscount).min(BigDecimal.valueOf(100));
-            boolean hasPremiumDiscount = premiumDiscount.compareTo(BigDecimal.ZERO) > 0;
-            return new DiscountInfo(totalDiscount, hasPremiumDiscount);
-        }
-
-        return new DiscountInfo(standardDiscount, false);
+    private record ItemPricing(BigDecimal unitPrice, BigDecimal originalPrice, Discount discount) {
     }
 
     private String resolveSellerName(String sellerId) {
@@ -334,20 +322,5 @@ public class CartService {
                         && CustomerType.PREMIUM.equals(
                                 user.getClientProfile().getCustomerType()))
                 .orElse(false);
-    }
-
-    private BigDecimal calculateEffectivePrice(Product product, boolean isPremium) {
-        BigDecimal price = product.getPrice();
-        BigDecimal discount = resolveDiscount(product, isPremium).discount();
-
-        if (discount.compareTo(BigDecimal.ZERO) > 0) {
-            BigDecimal factor = BigDecimal.valueOf(100)
-                    .subtract(discount)
-                    .divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP);
-
-            return price.multiply(factor).setScale(2, RoundingMode.HALF_UP);
-        }
-
-        return price.setScale(2, RoundingMode.HALF_UP);
     }
 }
