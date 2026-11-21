@@ -23,6 +23,7 @@ import es.uclm.esibuy.cart.repository.CartRepository;
 import es.uclm.esibuy.configuration.model.GeneralConfiguration;
 import es.uclm.esibuy.configuration.service.GeneralConfigurationService;
 import es.uclm.esibuy.common.exception.PagoFallidoException;
+import es.uclm.esibuy.common.exception.PedidoNoCompletadoException;
 import es.uclm.esibuy.common.exception.PedidoNotFoundException;
 import es.uclm.esibuy.common.exception.ProductNotFoundException;
 import es.uclm.esibuy.common.exception.ProductoNoDisponibleException;
@@ -194,14 +195,14 @@ public class OrderService {
 
         OrderPaymentMethod orderPaymentMethod = OrderPaymentMethod.from(paymentMethod);
 
-        Order pendingOrder = orderRepository.save(new Order(
+        Order pendingOrder = savePendingOrder(new Order(
                 customerId,
                 items,
                 totalPrice,
                 OrderShippingAddress.from(shippingAddress),
                 orderPaymentMethod,
                 OrderStatus.PENDIENTE,
-                OrderPaymentStatus.PENDIENTE));
+                OrderPaymentStatus.PENDIENTE), items);
 
         boolean paymentAccepted;
 
@@ -233,6 +234,16 @@ public class OrderService {
                 savedOrder.getStatus(),
                 savedOrder.getCreatedAt(),
                 savedOrder.getPaymentStatus());
+    }
+
+    private Order savePendingOrder(Order order, List<OrderItem> items) {
+        try {
+            return orderRepository.save(order);
+        } catch (RuntimeException exception) {
+            PedidoNoCompletadoException failure = new PedidoNoCompletadoException(exception);
+            releaseStock(items, failure);
+            throw failure;
+        }
     }
 
     private void discardPendingOrder(Order pendingOrder, List<OrderItem> items, RuntimeException cause) {
