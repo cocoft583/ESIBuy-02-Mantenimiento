@@ -40,6 +40,7 @@ public class GeneralConfigurationController {
                 configuration.getIvaPorcentaje(),
                 configuration.getGastosEnvio(),
                 configuration.getEnvioGratuitoDesde(),
-                configuration.isRegistroHabilitado());
+                configuration.isRegistroHabilitado(),
+                configuration.getMinimoValoracionesRanking());
     }
 }

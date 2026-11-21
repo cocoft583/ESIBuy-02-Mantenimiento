@@ -5,6 +5,8 @@ import java.math.BigDecimal;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 
 public record GeneralConfigurationDTO(
@@ -25,5 +27,10 @@ public record GeneralConfigurationDTO(
         BigDecimal envioGratuitoDesde,
 
         @NotNull(message = "La opción de registro es obligatoria")
-        Boolean registroHabilitado) {
+        Boolean registroHabilitado,
+
+        // Opcional: quien no lo envía deja el valor que ya había
+        @Min(value = 1, message = "El mínimo de valoraciones debe ser al menos 1")
+        @Max(value = 1000, message = "El mínimo de valoraciones no puede superar 1000")
+        Integer minimoValoracionesRanking) {
 }
