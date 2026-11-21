@@ -2,6 +2,7 @@
 package es.uclm.esibuy.orders.service;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -43,6 +44,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -57,8 +59,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -197,7 +201,7 @@ class OrderServiceTest {
 
                 ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
 
-                verify(orderRepository).save(orderCaptor.capture());
+                verify(orderRepository, times(2)).save(orderCaptor.capture());
 
                 assertEquals(OrderStatus.PENDIENTE, orderCaptor.getValue().getStatus());
                 assertEquals(OrderPaymentStatus.PAGADO, orderCaptor.getValue().getPaymentStatus());
@@ -206,6 +210,35 @@ class OrderServiceTest {
 
                 assertEquals(List.of(), cart.getItems());
                 assertEquals(BigDecimal.ZERO, cart.getTotalPrice());
+        }
+
+        @Test
+        @DisplayName("HU11: el pedido se guarda con el pago pendiente antes de cobrar y se marca pagado después")
+        void savesThePendingOrderBeforeChargingAndMarksItPaidAfterwards() {
+                prepareCartAndProduct(productWithStock(5));
+                enableStockReservation();
+                when(paymentGateway.charge(any(), any())).thenReturn(true);
+
+                List<OrderPaymentStatus> savedPaymentStatuses = new ArrayList<>();
+                when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> {
+                        Order order = invocation.getArgument(0);
+                        savedPaymentStatuses.add(order.getPaymentStatus());
+                        return order;
+                });
+
+                OrderConfirmationDTO result = orderService.createOrder(
+                                CUSTOMER_ID,
+                                new CreateOrderDTO("direccion-1", "pago-1"));
+
+                InOrder inOrder = inOrder(orderRepository, paymentGateway);
+                inOrder.verify(orderRepository).save(any(Order.class));
+                inOrder.verify(paymentGateway).charge(any(), eq(new BigDecimal("39.98")));
+                inOrder.verify(orderRepository).save(any(Order.class));
+
+                assertEquals(
+                                List.of(OrderPaymentStatus.PENDIENTE, OrderPaymentStatus.PAGADO),
+                                savedPaymentStatuses);
+                assertEquals(OrderPaymentStatus.PAGADO, result.paymentStatus());
         }
 
         @Test
@@ -229,7 +262,7 @@ class OrderServiceTest {
                 assertEquals(new BigDecimal("44.97"), chargedAmount.getValue());
 
                 ArgumentCaptor<Order> savedOrder = ArgumentCaptor.forClass(Order.class);
-                verify(orderRepository).save(savedOrder.capture());
+                verify(orderRepository, times(2)).save(savedOrder.capture());
                 assertEquals(new BigDecimal("44.97"), savedOrder.getValue().getTotalPrice());
         }
 
@@ -252,7 +285,7 @@ class OrderServiceTest {
                 orderService.createOrder(CUSTOMER_ID, new CreateOrderDTO("direccion-1", "pago-1"));
 
                 ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
-                verify(orderRepository).save(orderCaptor.capture());
+                verify(orderRepository, times(2)).save(orderCaptor.capture());
 
                 Order capturedOrder = orderCaptor.getValue();
                 assertEquals(1, capturedOrder.getItems().size());
@@ -300,7 +333,7 @@ class OrderServiceTest {
                 orderService.createOrder(CUSTOMER_ID, new CreateOrderDTO("direccion-1", "pago-1"));
 
                 ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
-                verify(orderRepository).save(orderCaptor.capture());
+                verify(orderRepository, times(2)).save(orderCaptor.capture());
 
                 return orderCaptor.getValue();
         }
@@ -645,6 +678,8 @@ class OrderServiceTest {
                 enableStockReservation();
                 enableStockRelease();
 
+                when(orderRepository.save(any(Order.class)))
+                                .thenAnswer(invocation -> invocation.getArgument(0));
                 when(paymentGateway.charge(any(), any())).thenReturn(false);
 
                 assertThrows(
@@ -653,7 +688,10 @@ class OrderServiceTest {
                                                 CUSTOMER_ID,
                                                 new CreateOrderDTO("direccion-1", "pago-1")));
 
-                verify(orderRepository, never()).save(any(Order.class));
+                ArgumentCaptor<Order> pendingOrder = ArgumentCaptor.forClass(Order.class);
+                verify(orderRepository).save(pendingOrder.capture());
+                assertEquals(OrderPaymentStatus.PENDIENTE, pendingOrder.getValue().getPaymentStatus());
+                verify(orderRepository).delete(pendingOrder.getValue());
                 verify(cartRepository, never()).save(cart);
 
                 verify(mongoTemplate).updateFirst(
