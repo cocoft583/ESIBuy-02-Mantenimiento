@@ -452,6 +452,13 @@ body {
   box-sizing: border-box;
 }
 
+/* La barra de pestañas del cliente va fija abajo: hueco para que no tape el pie */
+@media (max-width: 760px) {
+  body:has(.app-sidebar--client) {
+    padding-bottom: calc(66px + env(safe-area-inset-bottom));
+  }
+}
+
 /* En móvil la barra lateral va encima: el pie ocupa todo el ancho */
 @media (max-width: 760px) {
   .app-route-content:has(.seller-layout) + .site-footer,
