@@ -10,6 +10,7 @@ import es.uclm.esibuy.security.password.CompromisedPasswordService;
 import es.uclm.esibuy.users.dto.AltaAdminDTO;
 import es.uclm.esibuy.users.dto.UserAdminDTO;
 import es.uclm.esibuy.users.model.AdminProfile;
+import es.uclm.esibuy.users.model.ReservedAccounts;
 import es.uclm.esibuy.users.model.User;
 import es.uclm.esibuy.users.model.UserRole;
 import es.uclm.esibuy.users.repository.UserRepository;
@@ -38,7 +39,7 @@ public class AdminService {
 
     public User createAdmin(AltaAdminDTO request) {
         String email = request.getEmail().trim().toLowerCase(Locale.ROOT);
-        if (userRepository.existsByEmailIgnoreCase(email)) {
+        if (ReservedAccounts.isReserved(email) || userRepository.existsByEmailIgnoreCase(email)) {
             throw new DuplicateUserException(MSG_DUPLICATE_EMAIL);
         }
 

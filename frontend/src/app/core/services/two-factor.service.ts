@@ -33,10 +33,14 @@ export class TwoFactorService {
     private readonly http = inject(HttpClient);
     private readonly apiUrl = '/api/users/2fa';
 
-    setup(): Observable<TwoFactorSetupResponse> {
+    /**
+     * Pide una clave nueva. La primera vez va sin código; para cambiar la app
+     * con el 2FA ya activo, el backend exige el código actual (HU08).
+     */
+    setup(code?: string): Observable<TwoFactorSetupResponse> {
         return this.http.post<TwoFactorSetupResponse>(
             `${this.apiUrl}/setup`,
-            {},
+            code ? { code } : {},
             { withCredentials: true },
         );
     }

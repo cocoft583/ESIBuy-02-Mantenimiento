@@ -3,6 +3,7 @@ package es.uclm.esibuy.users.controller;
 import es.uclm.esibuy.common.exception.AccountPendingException;
 import es.uclm.esibuy.common.exception.ApiExceptionHandler;
 import es.uclm.esibuy.common.exception.InvalidCredentialsException;
+import es.uclm.esibuy.common.exception.OtpDeliveryException;
 import es.uclm.esibuy.security.AuthenticatedUserPrincipal;
 import es.uclm.esibuy.security.config.SecurityConfig;
 import es.uclm.esibuy.security.service.EmailOtpService;
@@ -35,8 +36,10 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
@@ -398,6 +401,24 @@ class UserControllerTest {
                                 .andExpect(jsonPath("$.requires3fa").value(true));
 
                 verify(userService).login(any(LoginRequest.class));
+        }
+
+        @Test
+        void loginAnswers503WhenTheVerificationCodeCannotBeSent() throws Exception {
+                User seller = activeSeller();
+                when(userService.login(any(LoginRequest.class))).thenReturn(seller);
+                doThrow(new OtpDeliveryException(new RuntimeException("smtp.example.com refused the connection")))
+                                .when(emailOtpService).issueChallenge(seller);
+
+                MvcResult result = loginRequest()
+                                .andExpect(status().isServiceUnavailable())
+                                .andExpect(jsonPath("$.message").value(
+                                                "No se ha podido enviar el código de verificación. Inténtalo de nuevo más tarde."))
+                                .andReturn();
+
+                assertFalse(result.getResponse().getContentAsString().contains("smtp"));
+                assertNull(result.getRequest().getSession(false));
+                verify(sessionAuthenticationService, never()).authenticate(any(), any(), any());
         }
 
         @Test

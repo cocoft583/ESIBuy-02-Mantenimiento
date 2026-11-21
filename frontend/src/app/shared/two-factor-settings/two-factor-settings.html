@@ -60,7 +60,7 @@
         </div>
         }
 
-        @if (twoFactorSetup && !twoFactorEnabled) {
+        @if (twoFactorSetup) {
         <div class="setup-instructions">
             <h3>1. Configura tu aplicación</h3>
 
@@ -126,7 +126,7 @@
         </div>
         }
 
-        @if (twoFactorEnabled) {
+        @if (twoFactorEnabled && !twoFactorSetup) {
         <div class="security-enabled-note">
             <strong>Verificación en dos pasos activada</strong>
 
@@ -185,6 +185,38 @@
                 <button type="button" class="secondary-button" (click)="regenerateBackupCodes()"
                     [disabled]="twoFactorBusy">
                     {{ twoFactorBusy ? 'Regenerando...' : 'Regenerar códigos' }}
+                </button>
+            </div>
+        </div>
+
+        <div class="backup-codes-section">
+            <h3>Cambiar app de autenticación</h3>
+
+            <p>
+                Introduce un código de tu aplicación actual para configurar
+                otra. Ten a mano la nueva y termina el proceso: en cuanto
+                continúes, tu app actual dejará de funcionar.
+            </p>
+
+            <div class="security-code-field">
+                <label for="reconfigure-two-factor-code">
+                    Código actual
+                </label>
+
+                <input id="reconfigure-two-factor-code" type="text" name="reconfigureTwoFactorCode"
+                    [(ngModel)]="reconfigureCode" (ngModelChange)="reconfigureCode = formatVerificationCode($event)"
+                    autocomplete="one-time-code" inputmode="numeric" placeholder="XXX XXX" maxlength="7"
+                    aria-describedby="reconfigure-code-help" />
+
+                <span id="reconfigure-code-help" class="qr-caption">
+                    Introduce los seis dígitos de tu aplicación.
+                </span>
+            </div>
+
+            <div class="security-actions">
+                <button type="button" class="secondary-button" (click)="reconfigureTwoFactor()"
+                    [disabled]="twoFactorBusy">
+                    {{ twoFactorBusy ? 'Preparando...' : 'Cambiar app' }}
                 </button>
             </div>
         </div>

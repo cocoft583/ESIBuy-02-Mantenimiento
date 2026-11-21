@@ -53,6 +53,7 @@ import es.uclm.esibuy.products.repository.ProductRepository;
 import es.uclm.esibuy.users.dto.ShippingAddressResponse;
 import es.uclm.esibuy.users.model.ClientProfile;
 import es.uclm.esibuy.users.model.PaymentMethod;
+import es.uclm.esibuy.users.model.ReservedAccounts;
 import es.uclm.esibuy.users.model.ShippingAddress;
 import es.uclm.esibuy.users.model.User;
 import es.uclm.esibuy.users.repository.UserRepository;
@@ -514,7 +515,7 @@ public class OrderService {
                 : (customer.getFirstName() + " " + customer.getLastName()).trim();
 
         String customerEmail = customer == null
-                || "cliente.eliminado@esibuy.local".equalsIgnoreCase(customer.getEmail())
+                || ReservedAccounts.isDeletedCustomer(customer.getEmail())
                         ? null
                         : customer.getEmail();
 
@@ -782,11 +783,16 @@ public class OrderService {
 
     private void restoreCancelledOrderStock(List<OrderItem> items) {
         for (OrderItem item : items) {
-            Product product = productRepository.findById(item.productId())
-                    .orElseThrow(() -> new IllegalStateException(
-                            "No se pudo encontrar el producto para reponer el stock"));
-            product.setStock(product.getStock() + item.quantity());
-            productRepository.save(product);
+            Product restoredProduct = mongoTemplate.findAndModify(
+                    Query.query(Criteria.where("_id").is(item.productId())),
+                    new Update().inc(STOCK_FIELD, item.quantity()),
+                    FindAndModifyOptions.options().returnNew(true),
+                    Product.class);
+
+            if (restoredProduct == null) {
+                throw new IllegalStateException(
+                        "No se pudo encontrar el producto para reponer el stock");
+            }
         }
     }
 

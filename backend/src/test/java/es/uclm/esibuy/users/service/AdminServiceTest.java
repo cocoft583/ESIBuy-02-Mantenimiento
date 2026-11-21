@@ -14,6 +14,7 @@ import es.uclm.esibuy.users.model.User;
 import es.uclm.esibuy.users.model.UserRole;
 import es.uclm.esibuy.users.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -218,6 +219,18 @@ class AdminServiceTest {
         when(userRepository.existsByEmailIgnoreCase("carlos.duplicado@esibuy.com")).thenReturn(true);
 
         assertThrows(DuplicateUserException.class, () -> adminService.createAdmin(request));
+    }
+
+    @Test
+    @DisplayName("HU18-CP11: el alta de administrador rechaza un correo del dominio reservado")
+    void shouldRejectAdminCreationWithAnEmailOfTheReservedDomain() {
+        AltaAdminDTO request = new AltaAdminDTO(
+                "12345678Z", "Carlos", "Gómez Pérez", "admin.reservado@esibuy.local",
+                "Admin123456!#", "Admin123456!#", "Ciudad Real", null);
+
+        assertThrows(DuplicateUserException.class, () -> adminService.createAdmin(request));
+
+        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test

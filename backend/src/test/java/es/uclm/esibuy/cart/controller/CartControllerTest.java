@@ -13,6 +13,7 @@ import es.uclm.esibuy.common.exception.StockInsuficienteException;
 import es.uclm.esibuy.security.AuthenticatedUserPrincipal;
 import es.uclm.esibuy.security.config.SecurityConfig;
 import es.uclm.esibuy.users.model.UserRole;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -100,6 +101,31 @@ class CartControllerTest {
         }
 
         @Test
+        @DisplayName("HU13-CP03: el carrito serializa el stock disponible como stockDisponible")
+        void shouldSerializeTheAvailableStockOfEachItem() throws Exception {
+                CartItemDTO item = new CartItemDTO(
+                                PRODUCT_ID,
+                                "Auriculares",
+                                PRICE,
+                                2,
+                                new BigDecimal("39.98"),
+                                null,
+                                null,
+                                null,
+                                PRICE,
+                                BigDecimal.ZERO,
+                                false,
+                                7);
+                when(cartService.getCart(CUSTOMER_ID)).thenReturn(new CartDTO(
+                                "carrito-1", CUSTOMER_ID, List.of(item), new BigDecimal("39.98")));
+
+                mockMvc.perform(get(API)
+                                .with(authentication(authenticationFor(UserRole.CLIENT))))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.items[0].stockDisponible").value(7));
+        }
+
+        @Test
         void shouldReturnTheAuthenticatedClientCart() throws Exception {
                 when(cartService.getCart(CUSTOMER_ID)).thenReturn(cart());
 
@@ -129,7 +155,7 @@ class CartControllerTest {
         }
 
         @Test
-        void shouldReturnBadRequestWhenStockIsInsufficient() throws Exception {
+        void shouldReturnConflictWhenStockIsInsufficient() throws Exception {
                 when(cartService.addItem(eq(CUSTOMER_ID), any()))
                                 .thenThrow(new StockInsuficienteException());
 
@@ -138,7 +164,8 @@ class CartControllerTest {
                                 .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(VALID_BODY))
-                                .andExpect(status().isBadRequest())
+                                .andExpect(status().isConflict())
+                                .andExpect(jsonPath("$.code").value("INSUFFICIENT_STOCK"))
                                 .andExpect(jsonPath("$.message")
                                                 .value("No hay stock suficiente para la cantidad solicitada"));
         }
@@ -212,7 +239,7 @@ class CartControllerTest {
         }
 
         @Test
-        void shouldReturnBadRequestWhenUpdatedQuantityExceedsStock() throws Exception {
+        void shouldReturnConflictWhenUpdatedQuantityExceedsStock() throws Exception {
                 when(cartService.updateItemQuantity(eq(CUSTOMER_ID), eq(PRODUCT_ID), any()))
                                 .thenThrow(new StockInsuficienteException());
 
@@ -223,7 +250,8 @@ class CartControllerTest {
                                 .content("""
                                                 {"cantidad":5}
                                                 """))
-                                .andExpect(status().isBadRequest())
+                                .andExpect(status().isConflict())
+                                .andExpect(jsonPath("$.code").value("INSUFFICIENT_STOCK"))
                                 .andExpect(jsonPath("$.message")
                                                 .value("No hay stock suficiente para la cantidad solicitada"));
         }
