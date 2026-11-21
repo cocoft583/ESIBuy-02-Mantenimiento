@@ -40,6 +40,9 @@ public class MongoStatisticsRepository implements StatisticsRepository {
                 Aggregation.match(Criteria.where("estadoPago").is(OrderPaymentStatus.PAGADO.name())
                         .and("estado").ne(OrderStatus.CANCELADO.name())),
                 Aggregation.unwind("items"),
+                // Una línea antigua sin producto no se puede atribuir a ninguno: agruparía en una
+                // fila con identificador nulo
+                Aggregation.match(Criteria.where(PRODUCT_ID).nin(Arrays.asList(null, ""))),
                 subtotalAsNumber(),
                 Aggregation.group(PRODUCT_ID)
                         .first("items.nombre").as("productName")
@@ -61,11 +64,15 @@ public class MongoStatisticsRepository implements StatisticsRepository {
 
     /**
      * Los importes pueden estar guardados como texto o como decimal, y sumar texto da 0,
-     * así que se convierten a número antes de agrupar.
+     * así que se convierten a número antes de agrupar. Un importe que no sea un número
+     * ("N/A", por ejemplo) o que falte cuenta como 0, en lugar de hacer fallar el ranking.
      */
     private AggregationOperation subtotalAsNumber() {
         return context -> new Document("$addFields", new Document(SUBTOTAL_VALUE,
-                new Document("$toDecimal", new Document("$ifNull", Arrays.asList("$items.subtotal", 0)))));
+                new Document("$convert", new Document("input", "$items.subtotal")
+                        .append("to", "decimal")
+                        .append("onError", 0)
+                        .append("onNull", 0))));
     }
 
     private ProductSalesRow toRow(Document document) {
