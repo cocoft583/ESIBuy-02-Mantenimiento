@@ -24,6 +24,8 @@ import { ClientCart } from './features/client/cart/cart';
 import { PasswordRecovery } from './features/identity/password-recovery/password-recovery';
 import { GeneralConfigurationPage } from './features/admin/general-configuration/general-configuration';
 import { LegalPage } from './features/legal/legal-page';
+import { webOnlyGuard } from './core/guards/web-only.guard';
+import { WebOnlyNotice } from './features/identity/web-only-notice/web-only-notice';
 
 export const routes: Routes = [
   { path: '', component: Home },
@@ -32,27 +34,28 @@ export const routes: Routes = [
   { path: 'restablecer-password', component: PasswordRecovery },
   { path: 'register', component: Register },
   { path: 'legal/:document', component: LegalPage },
+  { path: 'solo-web', component: WebOnlyNotice, canActivate: [authGuard] },
 
-  { path: 'admin/users/new', component: AdminUserCreate, canActivate: [authGuard, roleGuard('ADMIN')] },
+  { path: 'admin/users/new', component: AdminUserCreate, canActivate: [webOnlyGuard, authGuard, roleGuard('ADMIN')] },
   { path: 'admin/altas', redirectTo: 'admin/users/new', pathMatch: 'full' },
-  { path: 'admin/usuarios', component: AdminUserList, canActivate: [authGuard, roleGuard('ADMIN')] },
-  { path: 'admin/usuarios/:id/editar', component: AdminUserDetail, canActivate: [authGuard, roleGuard('ADMIN')] },
-  { path: 'admin/categorias', component: AdminCategoryList, canActivate: [authGuard, roleGuard('ADMIN')] },
-  { path: 'admin/productos', component: AdminProductList, canActivate: [authGuard, roleGuard('ADMIN')] },
+  { path: 'admin/usuarios', component: AdminUserList, canActivate: [webOnlyGuard, authGuard, roleGuard('ADMIN')] },
+  { path: 'admin/usuarios/:id/editar', component: AdminUserDetail, canActivate: [webOnlyGuard, authGuard, roleGuard('ADMIN')] },
+  { path: 'admin/categorias', component: AdminCategoryList, canActivate: [webOnlyGuard, authGuard, roleGuard('ADMIN')] },
+  { path: 'admin/productos', component: AdminProductList, canActivate: [webOnlyGuard, authGuard, roleGuard('ADMIN')] },
   { path: 'admin/products', redirectTo: 'admin/productos', pathMatch: 'full' },
-  { path: 'admin/configuracion', component: GeneralConfigurationPage, canActivate: [authGuard, roleGuard('ADMIN')] },
+  { path: 'admin/configuracion', component: GeneralConfigurationPage, canActivate: [webOnlyGuard, authGuard, roleGuard('ADMIN')] },
 
   { path: 'admin', redirectTo: 'admin/usuarios', pathMatch: 'full' },
   { path: 'admin/users', redirectTo: 'admin/usuarios', pathMatch: 'full' },
   { path: 'admin.html', redirectTo: 'admin/usuarios', pathMatch: 'full' },
-  { path: 'admin/profile', component: AdminProfile, canActivate: [authGuard, roleGuard('ADMIN')] },
+  { path: 'admin/profile', component: AdminProfile, canActivate: [webOnlyGuard, authGuard, roleGuard('ADMIN')] },
 
-  { path: 'seller/catalog', component: SellerCatalog, canActivate: [authGuard, roleGuard('SELLER')] },
-  { path: 'seller/orders', component: SellerOrders, canActivate: [authGuard, roleGuard('SELLER')] },
-  { path: 'products/new', component: ProductCreate, canActivate: [authGuard, roleGuard('SELLER')] },
+  { path: 'seller/catalog', component: SellerCatalog, canActivate: [webOnlyGuard, authGuard, roleGuard('SELLER')] },
+  { path: 'seller/orders', component: SellerOrders, canActivate: [webOnlyGuard, authGuard, roleGuard('SELLER')] },
+  { path: 'products/new', component: ProductCreate, canActivate: [webOnlyGuard, authGuard, roleGuard('SELLER')] },
   { path: 'products/:id', component: ProductDetail },
-  { path: 'products/:id/edit', component: ProductCreate, canActivate: [authGuard, roleGuard('SELLER')] },
-  { path: 'seller/profile', component: SellerProfile, canActivate: [authGuard, roleGuard('SELLER')] },
+  { path: 'products/:id/edit', component: ProductCreate, canActivate: [webOnlyGuard, authGuard, roleGuard('SELLER')] },
+  { path: 'seller/profile', component: SellerProfile, canActivate: [webOnlyGuard, authGuard, roleGuard('SELLER')] },
 
   { path: 'client/catalog', component: ClientCatalog, canActivate: [authGuard, roleGuard(['CLIENT', 'ADMIN'])] },
   { path: 'client/dashboard', redirectTo: 'client/catalog', pathMatch: 'full' },
