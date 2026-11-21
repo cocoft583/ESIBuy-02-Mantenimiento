@@ -158,6 +158,8 @@ public class SecurityConfig {
                                                         .hasRole(ROLE_CLIENT)
                                                         .requestMatchers("/api/users/me/payment-methods/**")
                                                         .hasRole(ROLE_CLIENT)
+                                                        .requestMatchers("/api/users/me/favorite-categories/**")
+                                                        .hasRole(ROLE_CLIENT)
                                                         .requestMatchers(
                                                                         HttpMethod.POST,
                                                                         "/api/auth/password-reset/request",
