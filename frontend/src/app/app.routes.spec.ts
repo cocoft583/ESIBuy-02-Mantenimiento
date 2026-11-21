@@ -22,7 +22,7 @@ describe('rutas de la app móvil', () => {
     const forEveryone = pagesWithComponent.filter((route) => !isWebOnly(route.path));
 
     expect(forEveryone.map((route) => route.path)).toEqual(expect.arrayContaining([
-      '', 'login', 'register', 'products/:id', 'client/catalog', 'client/cart',
+      '', 'login', 'register', 'products/:id', 'client/catalog', 'client/cart', 'solo-web',
     ]));
     for (const route of forEveryone) {
       expect(route.canActivate ?? [], route.path).not.toContain(webOnlyGuard);

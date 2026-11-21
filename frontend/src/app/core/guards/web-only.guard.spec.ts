@@ -22,10 +22,10 @@ describe('webOnlyGuard', () => {
     expect(runGuard(false)).toBe(true);
   });
 
-  it('en la app no deja entrar y lleva a la portada', () => {
+  it('en la app no deja entrar y lleva al aviso de que es solo para la web', () => {
     const result = runGuard(true);
 
     expect(result).toBeInstanceOf(UrlTree);
-    expect(TestBed.inject(Router).serializeUrl(result as UrlTree)).toBe('/');
+    expect(TestBed.inject(Router).serializeUrl(result as UrlTree)).toBe('/solo-web');
   });
 });
