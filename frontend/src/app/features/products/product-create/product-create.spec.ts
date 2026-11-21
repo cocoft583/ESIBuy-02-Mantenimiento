@@ -120,6 +120,7 @@ describe('ProductCreate', () => {
       descuento: 101,
       descuentoPremium: -1,
       disponible: null,
+      exclusivoPremium: false,
     });
 
     fixture.componentInstance.onSubmit();
@@ -147,6 +148,7 @@ describe('ProductCreate', () => {
       descuento: null,
       descuentoPremium: 15,
       disponible: true,
+      exclusivoPremium: false,
     });
 
     fixture.componentInstance.onSubmit();
@@ -160,6 +162,7 @@ describe('ProductCreate', () => {
       price: 12.1,
       premiumDiscount: 15,
       available: true,
+      premiumOnly: false,
     } satisfies ProductCreateRequest);
     expect(fixture.componentInstance.submitting()).toBe(false);
     expect(fixture.componentInstance.submitSuccess()).toBe(true);
@@ -185,6 +188,7 @@ describe('ProductCreate', () => {
       descuento: 5,
       descuentoPremium: 10,
       disponible: true,
+      exclusivoPremium: false,
     });
 
     component.form.controls.nombre.setValue('Auriculares actualizados');
@@ -221,6 +225,7 @@ describe('ProductCreate', () => {
       descuento: null,
       descuentoPremium: null,
       disponible: true,
+      exclusivoPremium: false,
     });
 
     fixture.componentInstance.onSubmit();
@@ -250,6 +255,7 @@ describe('ProductCreate', () => {
       descuento: null,
       descuentoPremium: null,
       disponible: true,
+      exclusivoPremium: false,
     });
 
     fixture.componentInstance.onSubmit();
@@ -269,6 +275,7 @@ describe('ProductCreate', () => {
       descuento: null,
       descuentoPremium: null,
       disponible: true,
+      exclusivoPremium: false,
     });
 
     fixture.componentInstance.onSubmit();
@@ -278,7 +285,65 @@ describe('ProductCreate', () => {
       categoryIds: ['category-tech'],
       price: 6.05,
       available: true,
+      premiumOnly: false,
     } satisfies ProductCreateRequest);
+  });
+
+  // HU15: el vendedor marca o desmarca el producto como exclusivo Premium.
+
+  it('should render the premium-only toggle unchecked by default', () => {
+    const checkbox = (fixture.nativeElement as HTMLElement)
+      .querySelector<HTMLInputElement>('input[formControlName="exclusivoPremium"]');
+
+    expect(checkbox).not.toBeNull();
+    expect(checkbox?.type).toBe('checkbox');
+    expect(checkbox?.checked).toBe(false);
+    expect(fixture.componentInstance.form.controls.exclusivoPremium.value).toBe(false);
+  });
+
+  it('should create a premium-only product when the toggle is checked', () => {
+    fixture.componentInstance.form.patchValue({
+      nombre: 'Producto exclusivo',
+      categoriaIds: ['category-tech'],
+      precio: 10,
+      exclusivoPremium: true,
+    });
+
+    fixture.componentInstance.onSubmit();
+
+    expect(createProduct).toHaveBeenCalledWith(expect.objectContaining({ premiumOnly: true }));
+  });
+
+  it('should preload premium-only and allow removing it when editing', async () => {
+    getProduct.mockReturnValue(of({
+      id: 'product-1',
+      name: 'Auriculares',
+      categoryIds: ['category-tech'],
+      stock: 3,
+      description: 'Inalámbricos',
+      price: 19.99,
+      discount: null,
+      premiumDiscount: null,
+      imageUrl: null,
+      available: true,
+      sellerId: 'seller-1',
+      premiumOnly: true,
+    }));
+    fixture.destroy();
+    routeProductId = 'product-1';
+    fixture = TestBed.createComponent(ProductCreateComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance;
+    expect(component.form.controls.exclusivoPremium.value).toBe(true);
+
+    component.form.controls.exclusivoPremium.setValue(false);
+    component.onSubmit();
+    await fixture.whenStable();
+
+    expect(updateProduct).toHaveBeenCalledWith('product-1', expect.objectContaining({ premiumOnly: false }));
   });
 
   it('should display real-time final price with VAT when base price is entered', () => {

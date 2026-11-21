@@ -1,7 +1,9 @@
 package es.uclm.esibuy.users.controller;
 
+import es.uclm.esibuy.common.exception.AccountPendingException;
 import es.uclm.esibuy.common.exception.ApiExceptionHandler;
 import es.uclm.esibuy.common.exception.InvalidCredentialsException;
+import es.uclm.esibuy.common.exception.OtpDeliveryException;
 import es.uclm.esibuy.security.AuthenticatedUserPrincipal;
 import es.uclm.esibuy.security.config.SecurityConfig;
 import es.uclm.esibuy.security.service.EmailOtpService;
@@ -16,6 +18,7 @@ import es.uclm.esibuy.users.model.User;
 import es.uclm.esibuy.users.model.UserRole;
 import es.uclm.esibuy.users.service.UserService;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -26,14 +29,17 @@ import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
@@ -54,6 +60,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(UserController.class)
+@TestPropertySource(properties = "app.security.email-otp.validity-seconds=120")
 @Import({
                 ApiExceptionHandler.class,
                 SecurityConfig.class,
@@ -70,6 +77,7 @@ class UserControllerTest {
         private static final String CURRENT_USER_API = "/api/users/me";
         private static final String EMAIL_OTP_SETTINGS_API = "/api/users/me/email-otp-settings";
         private static final String TEST_OTP = "123456";
+        private static final int OTP_VALIDITY_SECONDS = 120;
 
         @Autowired
         private MockMvc mockMvc;
@@ -112,14 +120,14 @@ class UserControllerTest {
                                                                 """))
                                 .andExpect(status().isAccepted())
                                 .andExpect(jsonPath("$.requires3fa").value(true))
-                                .andExpect(jsonPath("$.expiresInSeconds").value(600))
+                                .andExpect(jsonPath("$.expiresInSeconds").value(OTP_VALIDITY_SECONDS))
                                 .andReturn();
 
                 MockHttpSession pendingSession = (MockHttpSession) loginResult.getRequest().getSession(false);
 
                 assertNotNull(pendingSession);
                 assertEquals(oldSessionId, pendingSession.getId());
-                assertEquals(30 * 60, pendingSession.getMaxInactiveInterval());
+                assertEquals(OTP_VALIDITY_SECONDS, pendingSession.getMaxInactiveInterval());
 
                 MvcResult verificationResult = mockMvc.perform(
                                 post(VERIFY_OTP_API)
@@ -307,6 +315,23 @@ class UserControllerTest {
         }
 
         @Test
+        @DisplayName("HU17-CP02: una cuenta pendiente recibe 403 ACCOUNT_PENDING y el intento no cuenta")
+        void shouldRespondForbiddenWithoutCountingTheAttemptWhenAccountIsPending() throws Exception {
+                doThrow(new AccountPendingException())
+                                .when(userService).login(any(LoginRequest.class));
+
+                loginRequest()
+                                .andExpect(status().isForbidden())
+                                .andExpect(jsonPath("$.code").value("ACCOUNT_PENDING"))
+                                .andExpect(jsonPath("$.message")
+                                                .value("Tu cuenta está pendiente de aprobación por un administrador"));
+
+                verify(loginAttemptService, never()).loginFailed(any(), any());
+                verify(loginAttemptService, never()).loginSucceeded(any(), any());
+                verify(sessionAuthenticationService, never()).authenticate(any(), any(), any());
+        }
+
+        @Test
         void shouldNotMarkSellerLoginAsSuccessfulBeforeOtpVerification() throws Exception {
                 User seller = activeSeller();
                 when(userService.login(any(LoginRequest.class))).thenReturn(seller);
@@ -379,6 +404,24 @@ class UserControllerTest {
         }
 
         @Test
+        void loginAnswers503WhenTheVerificationCodeCannotBeSent() throws Exception {
+                User seller = activeSeller();
+                when(userService.login(any(LoginRequest.class))).thenReturn(seller);
+                doThrow(new OtpDeliveryException(new RuntimeException("smtp.example.com refused the connection")))
+                                .when(emailOtpService).issueChallenge(seller);
+
+                MvcResult result = loginRequest()
+                                .andExpect(status().isServiceUnavailable())
+                                .andExpect(jsonPath("$.message").value(
+                                                "No se ha podido enviar el código de verificación. Inténtalo de nuevo más tarde."))
+                                .andReturn();
+
+                assertFalse(result.getResponse().getContentAsString().contains("smtp"));
+                assertNull(result.getRequest().getSession(false));
+                verify(sessionAuthenticationService, never()).authenticate(any(), any(), any());
+        }
+
+        @Test
         void sellerLoginRequiresEmailOtp() throws Exception {
                 User seller = activeSeller();
                 when(userService.login(any(LoginRequest.class))).thenReturn(seller);
@@ -386,7 +429,7 @@ class UserControllerTest {
                 loginRequest()
                                 .andExpect(status().isAccepted())
                                 .andExpect(jsonPath("$.requires3fa").value(true))
-                                .andExpect(jsonPath("$.expiresInSeconds").value(600));
+                                .andExpect(jsonPath("$.expiresInSeconds").value(OTP_VALIDITY_SECONDS));
 
                 verify(emailOtpService).issueChallenge(seller);
                 verify(sessionAuthenticationService, never())
@@ -546,6 +589,68 @@ class UserControllerTest {
 
                 verify(sessionAuthenticationService, never())
                                 .authenticate(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("HU6-CP02: el paso de verificación dura lo mismo que el código")
+        void pendingVerificationStepLastsAsLongAsTheOtpValidity() throws Exception {
+                User seller = activeSeller();
+                when(userService.login(any(LoginRequest.class))).thenReturn(seller);
+
+                MvcResult loginResult = loginRequest()
+                                .andExpect(status().isAccepted())
+                                .andExpect(jsonPath("$.expiresInSeconds").value(OTP_VALIDITY_SECONDS))
+                                .andReturn();
+
+                MockHttpSession pendingSession = (MockHttpSession) loginResult.getRequest().getSession(false);
+
+                assertNotNull(pendingSession);
+                assertEquals(OTP_VALIDITY_SECONDS, pendingSession.getMaxInactiveInterval());
+        }
+
+        @Test
+        @DisplayName("HU6-CP03: el controlador responde 401 y no autentica cuando el OTP es rechazado")
+        void shouldRespondUnauthorizedWithoutAuthenticatingWhenOtpIsRejected() throws Exception {
+                User seller = activeSeller();
+                when(userService.login(any(LoginRequest.class))).thenReturn(seller);
+                when(userService.findById(SELLER_ID)).thenReturn(seller);
+
+                doThrow(new es.uclm.esibuy.common.exception.InvalidOtpException())
+                                .when(emailOtpService).verifyChallenge(SELLER_ID, TEST_OTP);
+
+                MvcResult loginResult = loginRequest()
+                                .andExpect(status().isAccepted())
+                                .andReturn();
+
+                MockHttpSession session = (MockHttpSession) loginResult.getRequest().getSession(false);
+                assertNotNull(session);
+
+                mockMvc.perform(post(VERIFY_OTP_API)
+                                .with(csrf())
+                                .session(session)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                                {"code":"123456"}
+                                                """))
+                                .andExpect(status().isUnauthorized());
+
+                verify(sessionAuthenticationService, never())
+                                .authenticate(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("HU6-CP04: el desafío para desactivar el OTP informa de la validez configurada")
+        void disableChallengeReportsTheConfiguredOtpValidity() throws Exception {
+                User seller = activeSeller();
+                when(userService.findById(SELLER_ID)).thenReturn(seller);
+
+                mockMvc.perform(post("/api/users/me/email-otp-settings/disable-challenge")
+                                .with(sellerAuthentication())
+                                .with(csrf()))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.expiresInSeconds").value(OTP_VALIDITY_SECONDS));
+
+                verify(emailOtpService).issueDisableChallenge(seller);
         }
 
         private User activeSeller() {

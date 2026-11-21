@@ -165,7 +165,9 @@ public class ApiExceptionHandler {
         @ExceptionHandler(StockInsuficienteException.class)
         public ResponseEntity<Map<String, String>> handleInsufficientStock(StockInsuficienteException exception,
                         HttpServletRequest request) {
-                return ResponseEntity.badRequest().body(Map.of(MESSAGE, exception.getMessage(),
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                                MESSAGE, exception.getMessage(),
+                                "code", StockInsuficienteException.CODE,
                                 CORRELATION_ID, correlationId(request)));
         }
 
@@ -242,6 +244,15 @@ public class ApiExceptionHandler {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(MESSAGE, exception.getMessage()));
         }
 
+        @ExceptionHandler(AccountPendingException.class)
+        public ResponseEntity<Map<String, String>> handleAccountPending(AccountPendingException exception,
+                        HttpServletRequest request) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+                                MESSAGE, exception.getMessage(),
+                                "code", AccountPendingException.CODE,
+                                CORRELATION_ID, correlationId(request)));
+        }
+
         @ExceptionHandler(TooManyRequestsException.class)
         public ResponseEntity<Map<String, String>> handleTooManyRequests(TooManyRequestsException exception,
                         HttpServletRequest request) {
@@ -269,6 +280,21 @@ public class ApiExceptionHandler {
                         InvalidOtpException exception) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                                 .body(Map.of(MESSAGE, exception.getMessage()));
+        }
+
+        @ExceptionHandler(OtpDeliveryException.class)
+        public ResponseEntity<Map<String, String>> handleOtpDelivery(
+                        OtpDeliveryException exception,
+                        HttpServletRequest request) {
+
+                String id = correlationId(request);
+
+                LOGGER.error("No se pudo enviar el código de verificación por correo. correlationId={}", id,
+                                exception.getCause());
+
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of(
+                                MESSAGE, exception.getMessage(),
+                                CORRELATION_ID, id));
         }
 
         @ExceptionHandler(CompromisedPasswordException.class)

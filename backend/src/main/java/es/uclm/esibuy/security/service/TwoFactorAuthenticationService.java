@@ -2,7 +2,10 @@ package es.uclm.esibuy.security.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.OptionalLong;
 
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import es.uclm.esibuy.users.model.User;
@@ -17,42 +20,65 @@ public class TwoFactorAuthenticationService {
     private final UserService userService;
     private final TotpService totpService;
     private final EncryptionService encryptionService;
+    private final PasswordEncoder passwordEncoder;
 
     public TwoFactorAuthenticationService(
             UserService userService,
             TotpService totpService,
-            EncryptionService encryptionService) {
+            EncryptionService encryptionService,
+            PasswordEncoder passwordEncoder) {
         this.userService = userService;
         this.totpService = totpService;
         this.encryptionService = encryptionService;
+        this.passwordEncoder = passwordEncoder;
     }
 
-    public String setup(String userId) {
+    public SetupResult setup(String userId, String code) {
         User user = userService.findById(userId);
+        if (user.isTotpEnabled() && !verifyTotp(user, code)) {
+            return new SetupResult(Status.INVALID_CODE, null);
+        }
         String secret = totpService.generateSecret();
         user.setTotpSecret(encryptionService.encrypt(secret));
         userService.save(user);
-        return secret;
+        return new SetupResult(Status.SUCCESS, secret);
     }
 
-    /** Verifies a TOTP or consumes a valid one-time backup code during login. */
+    /**
+     * Verifies a TOTP or consumes a valid one-time backup code during login.
+     * A TOTP is accepted once: a code from a period that was already used is rejected.
+     */
     public boolean verifyLoginCode(User user, String code) {
         if (code == null || code.isBlank()) {
             return false;
         }
 
         String rawSecret = encryptionService.decrypt(user.getTotpSecret());
-        if (totpService.verifyCode(rawSecret, code)) {
+        OptionalLong timeStep = totpService.findMatchingTimeStep(rawSecret, code);
+        if (timeStep.isPresent()) {
+            if (timeStep.getAsLong() <= user.getTotpLastUsedStep()) {
+                return false;
+            }
+            user.setTotpLastUsedStep(timeStep.getAsLong());
+            userService.save(user);
             return true;
         }
 
         String backupCode = code.trim();
-        List<String> backupCodes = user.getBackupCodes();
-        if (backupCodes == null || !backupCodes.contains(backupCode)) {
+        List<String> backupCodeHashes = user.getBackupCodeHashes();
+        if (backupCodeHashes == null) {
             return false;
         }
 
-        backupCodes.remove(backupCode);
+        Optional<String> usedHash = backupCodeHashes.stream()
+                .filter(hash -> passwordEncoder.matches(backupCode, hash))
+                .findFirst();
+        if (usedHash.isEmpty()) {
+            return false;
+        }
+
+        // Cada código sirve una sola vez
+        backupCodeHashes.remove(usedHash.get());
         userService.save(user);
         return true;
     }
@@ -65,7 +91,7 @@ public class TwoFactorAuthenticationService {
 
         List<String> backupCodes = totpService.generateBackupCodes(BACKUP_CODE_COUNT);
         user.setTotpEnabled(true);
-        user.setBackupCodes(new ArrayList<>(backupCodes));
+        user.setBackupCodeHashes(hash(backupCodes));
         userService.save(user);
         return new EnableResult(true, backupCodes);
     }
@@ -75,12 +101,12 @@ public class TwoFactorAuthenticationService {
         if (!user.isTotpEnabled()) {
             return new BackupCodesResult(Status.TWO_FACTOR_DISABLED, List.of());
         }
-        if (code != null && !code.isBlank() && !verifyTotp(user, code)) {
+        if (!verifyTotp(user, code)) {
             return new BackupCodesResult(Status.INVALID_CODE, List.of());
         }
 
         List<String> backupCodes = totpService.generateBackupCodes(BACKUP_CODE_COUNT);
-        user.setBackupCodes(new ArrayList<>(backupCodes));
+        user.setBackupCodeHashes(hash(backupCodes));
         userService.save(user);
         return new BackupCodesResult(Status.SUCCESS, backupCodes);
     }
@@ -96,9 +122,17 @@ public class TwoFactorAuthenticationService {
 
         user.setTotpEnabled(false);
         user.setTotpSecret(null);
-        user.setBackupCodes(new ArrayList<>());
+        user.setBackupCodeHashes(new ArrayList<>());
         userService.save(user);
         return Status.SUCCESS;
+    }
+
+    private List<String> hash(List<String> rawCodes) {
+        List<String> hashes = new ArrayList<>();
+        for (String rawCode : rawCodes) {
+            hashes.add(passwordEncoder.encode(rawCode));
+        }
+        return hashes;
     }
 
     private boolean verifyTotp(User user, String code) {
@@ -117,4 +151,6 @@ public class TwoFactorAuthenticationService {
     public record EnableResult(boolean enabled, List<String> backupCodes) { }
 
     public record BackupCodesResult(Status status, List<String> backupCodes) { }
+
+    public record SetupResult(Status status, String secret) { }
 }

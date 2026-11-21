@@ -34,8 +34,11 @@ public class User {
 
     private String totpSecret;
     private boolean totpEnabled = false;
-    private List<String> backupCodes = new ArrayList<>();
+    private long totpLastUsedStep;
+    // Solo el hash BCrypt de cada código: el código en claro se enseña una vez, al generarlo
+    private List<String> backupCodeHashes = new ArrayList<>();
     private boolean emailOtpEnabled = false;
+    private int sessionVersion;
 
     protected User() {
     }
@@ -96,6 +99,15 @@ public class User {
 
     public void setBlocked(boolean blocked) {
         this.blocked = blocked;
+    }
+
+    public int getSessionVersion() {
+        return sessionVersion;
+    }
+
+    // Invalida todas las sesiones abiertas: el filtro rechaza las de una versión anterior
+    public void revokeSessions() {
+        sessionVersion++;
     }
 
     public Instant getCreatedAt() {
@@ -174,12 +186,20 @@ public class User {
         this.totpEnabled = totpEnabled;
     }
 
-    public List<String> getBackupCodes() {
-        return backupCodes;
+    public long getTotpLastUsedStep() {
+        return totpLastUsedStep;
     }
 
-    public void setBackupCodes(List<String> backupCodes) {
-        this.backupCodes = backupCodes;
+    public void setTotpLastUsedStep(long totpLastUsedStep) {
+        this.totpLastUsedStep = totpLastUsedStep;
+    }
+
+    public List<String> getBackupCodeHashes() {
+        return backupCodeHashes;
+    }
+
+    public void setBackupCodeHashes(List<String> backupCodeHashes) {
+        this.backupCodeHashes = backupCodeHashes;
     }
 
     public boolean isEmailOtpEnabled() {

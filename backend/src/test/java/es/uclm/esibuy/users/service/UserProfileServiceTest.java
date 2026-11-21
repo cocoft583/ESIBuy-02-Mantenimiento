@@ -157,7 +157,7 @@ class UserProfileServiceTest {
                 when(deletedCustomer.getId()).thenReturn("deleted-customer-id");
                 Order order = mock(Order.class);
                 when(userRepository.findById("client-1")).thenReturn(Optional.of(client));
-                when(userRepository.findByEmailIgnoreCase("cliente.eliminado@esibuy.local"))
+                when(userRepository.findByEmailIgnoreCase("cliente-eliminado"))
                                 .thenReturn(Optional.of(deletedCustomer));
                 when(orderRepository.findAllByCustomerIdOrderByCreatedAtDesc("client-1")).thenReturn(List.of(order));
 
@@ -177,7 +177,7 @@ class UserProfileServiceTest {
                 User client = new User("ana@example.com", "Ana", "García", UserRole.CLIENT);
                 ReflectionTestUtils.setField(client, "id", "client-1");
                 when(userRepository.findById("client-1")).thenReturn(Optional.of(client));
-                when(userRepository.findByEmailIgnoreCase("cliente.eliminado@esibuy.local"))
+                when(userRepository.findByEmailIgnoreCase("cliente-eliminado"))
                                 .thenReturn(Optional.empty());
                 when(userRepository.save(any(User.class))).thenAnswer(inv -> {
                         return inv.getArgument(0);
@@ -189,7 +189,7 @@ class UserProfileServiceTest {
                 ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
                 verify(userRepository).save(captor.capture());
                 User technical = captor.getValue();
-                assertEquals("cliente.eliminado@esibuy.local", technical.getEmail());
+                assertEquals("cliente-eliminado", technical.getEmail());
                 assertEquals("Cliente", technical.getFirstName());
                 assertEquals("eliminado", technical.getLastName());
                 assertEquals(UserRole.CLIENT, technical.getRole());

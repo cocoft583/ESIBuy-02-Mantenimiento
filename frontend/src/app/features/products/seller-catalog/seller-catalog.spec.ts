@@ -252,4 +252,51 @@ describe('SellerCatalog', () => {
     expect(component.getFinalPriceWithVat(10)).toBe(12.1);
     expect(component.getBasePrice(12.1)).toBe(10);
   });
+
+  // HU15: el vendedor ve qué productos son exclusivos Premium y no se desmarcan al editar desde el catálogo.
+
+  async function renderWithPremiumOnlyProduct(): Promise<HTMLElement> {
+    fixture.destroy();
+    productsResponse = of([
+      { ...products[0], premiumOnly: true },
+      { ...products[0], id: 'product-2', name: 'Altavoz', premiumOnly: false },
+    ]);
+    fixture = TestBed.createComponent(SellerCatalog);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  it('should show the premium-only badge only on exclusive products', async () => {
+    const element = await renderWithPremiumOnlyProduct();
+
+    const rows = element.querySelectorAll('tbody tr');
+    expect(rows[0].querySelector('.premium-only-badge')?.textContent?.trim()).toBe('Exclusivo Premium');
+    expect(rows[1].querySelector('.premium-only-badge')).toBeNull();
+  });
+
+  it('should keep a product premium-only when toggling its visibility', async () => {
+    const element = await renderWithPremiumOnlyProduct();
+
+    element.querySelector<HTMLButtonElement>('.editable-availability')?.click();
+    await fixture.whenStable();
+
+    expect(updateProduct).toHaveBeenCalledWith('product-1', expect.objectContaining({
+      available: false,
+      premiumOnly: true,
+    }));
+  });
+
+  it('should keep a product premium-only when editing its price inline', async () => {
+    await renderWithPremiumOnlyProduct();
+    const component = fixture.componentInstance;
+    const product = component.products()[0];
+
+    component.startInlineEdit(product, 'price');
+    component.saveInlineEdit(product);
+    await fixture.whenStable();
+
+    expect(updateProduct).toHaveBeenCalledWith('product-1', expect.objectContaining({ premiumOnly: true }));
+  });
 });

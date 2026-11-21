@@ -23,6 +23,7 @@ public class Product {
     private String imageFileId;
     private String imageContentType;
     private boolean available;
+    private boolean premiumOnly;
     private String sellerId;
     private Double rating;
     private int reviewCount;
@@ -139,6 +140,14 @@ public class Product {
 
     public void setPremiumDiscount(BigDecimal premiumDiscount) {
         this.premiumDiscount = premiumDiscount;
+    }
+
+    public boolean isPremiumOnly() {
+        return premiumOnly;
+    }
+
+    public void setPremiumOnly(boolean premiumOnly) {
+        this.premiumOnly = premiumOnly;
     }
 
     public void setImageUrl(String imageUrl) {

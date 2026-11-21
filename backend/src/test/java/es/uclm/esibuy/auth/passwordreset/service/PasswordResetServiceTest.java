@@ -326,6 +326,34 @@ class PasswordResetServiceTest {
         }
 
         @Test
+        void confirmResetShouldRevokeOpenSessions() {
+                PasswordResetToken candidate = token(RAW_TOKEN);
+
+                when(tokenRepository.findByTokenHashAndUsedAtIsNullAndExpiresAtAfter(
+                                eq(sha256(RAW_TOKEN)),
+                                any(Instant.class)))
+                                .thenReturn(Optional.of(candidate));
+
+                when(mongoTemplate.findAndModify(
+                                any(Query.class),
+                                any(Update.class),
+                                any(FindAndModifyOptions.class),
+                                eq(PasswordResetToken.class)))
+                                .thenReturn(candidate);
+
+                when(userRepository.findById(USER_ID))
+                                .thenReturn(Optional.of(user));
+
+                when(passwordEncoder.encode(NEW_PASSWORD))
+                                .thenReturn(ENCODED_PASSWORD);
+
+                service.confirmReset(RAW_TOKEN, NEW_PASSWORD);
+
+                assertEquals(1, user.getSessionVersion());
+                verify(userRepository).save(user);
+        }
+
+        @Test
         void confirmResetShouldRejectTokenNotFoundOrExpired() {
                 when(tokenRepository.findByTokenHashAndUsedAtIsNullAndExpiresAtAfter(
                                 eq(sha256(RAW_TOKEN)),

@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,6 +20,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
@@ -32,7 +34,9 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import es.uclm.esibuy.common.filter.CorrelationIdFilter;
+import es.uclm.esibuy.security.filter.SessionRevocationFilter;
 import es.uclm.esibuy.security.password.PepperedPasswordEncoder;
+import es.uclm.esibuy.users.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -56,8 +60,8 @@ public class SecurityConfig {
 
         @Bean
         CookieCsrfTokenRepository csrfTokenRepository(
-                        @Value("${server.servlet.session.cookie.secure:false}") boolean secureCookie,
-                        @Value("${server.servlet.session.cookie.same-site:Lax}") String sameSite) {
+                        @Value("${server.servlet.session.cookie.secure}") boolean secureCookie,
+                        @Value("${server.servlet.session.cookie.same-site}") String sameSite) {
 
                 CookieCsrfTokenRepository repository = CookieCsrfTokenRepository.withHttpOnlyFalse();
 
@@ -73,8 +77,13 @@ public class SecurityConfig {
         SecurityFilterChain securityFilterChain(
                         HttpSecurity http,
                         SecurityContextRepository securityContextRepository,
-                        CookieCsrfTokenRepository csrfTokenRepository) {
+                        CookieCsrfTokenRepository csrfTokenRepository,
+                        ObjectProvider<UserRepository> userRepository) {
                 try {
+                        // En los @WebMvcTest no hay repositorios de Mongo: ahí el filtro no se registra
+                        userRepository.ifAvailable(repository -> http.addFilterBefore(
+                                        new SessionRevocationFilter(repository), AuthorizationFilter.class));
+
                         return http
                                         .cors(Customizer.withDefaults())
                                         .csrf(csrf -> csrf
@@ -149,6 +158,8 @@ public class SecurityConfig {
                                                         .hasRole(ROLE_CLIENT)
                                                         .requestMatchers("/api/users/me/payment-methods/**")
                                                         .hasRole(ROLE_CLIENT)
+                                                        .requestMatchers("/api/users/me/favorite-categories/**")
+                                                        .hasRole(ROLE_CLIENT)
                                                         .requestMatchers(
                                                                         HttpMethod.POST,
                                                                         "/api/auth/password-reset/request",
@@ -182,16 +193,10 @@ public class SecurityConfig {
         }
 
         @Bean
-        CorsConfigurationSource corsConfigurationSource() {
+        CorsConfigurationSource corsConfigurationSource(
+                        @Value("${esibuy.security.cors.allowed-origins}") String[] allowedOrigins) {
                 CorsConfiguration configuration = new CorsConfiguration();
-                configuration.setAllowedOrigins(List.of(
-                                "http://localhost:3000",
-                                "http://localhost:5173",
-                                "http://localhost:4200",
-                                "https://esibuy-2627.web.app",
-                                "https://esibuy-2627.firebaseapp.com",
-                                "https://localhost",          // app Android (Capacitor)
-                                "capacitor://localhost"));    // app iOS (Capacitor)
+                configuration.setAllowedOrigins(List.of(allowedOrigins));
                 configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
                 configuration.setAllowedHeaders(List.of("*"));
                 configuration.setExposedHeaders(

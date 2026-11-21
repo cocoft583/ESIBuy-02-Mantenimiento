@@ -120,7 +120,7 @@
 
           <div class="filter-control">
             <label for="filter-sort" class="filter-label">Ordenar por</label>
-            <select id="filter-sort" [ngModel]="sortOrder()" (ngModelChange)="sortOrder.set($event)">
+            <select id="filter-sort" [ngModel]="sortOrder()" (ngModelChange)="sortOrder.set($event); onFilterChange()">
               <option value="recommended">Recomendados</option>
               <option value="rating-desc">Mejor valorados</option>
               <option value="rating-asc">Peor valorados</option>
@@ -137,7 +137,7 @@
             </label>
 
             <label class="checkbox-label">
-              <input type="checkbox" [ngModel]="onlyOffers()" (ngModelChange)="onlyOffers.set($event)" />
+              <input type="checkbox" [ngModel]="onlyOffers()" (ngModelChange)="onlyOffers.set($event); onFilterChange()" />
               <span>Solo ofertas</span>
             </label>
 
@@ -152,7 +152,7 @@
       <section class="products-region" aria-label="Listado de productos">
         <div class="results-header">
           @if (!loading() && !error()) {
-          <span class="product-count">{{ products().length }} productos disponibles</span>
+          <span class="product-count">{{ totalElements() }} productos disponibles</span>
           }
         </div>
 
@@ -175,7 +175,7 @@
         </div>
         } @else {
         <div class="product-grid">
-          @for (product of visibleProducts(); track product.id) {
+          @for (product of products(); track product.id) {
           <article class="product-card" [routerLink]="['/products', product.id]">
             <div class="product-image-container">
               @if (product.imageUrl && !imageErrors()[product.id]) {
@@ -299,7 +299,7 @@
           </article>
           }
         </div>
-        @if (products().length > pageSize) {
+        @if (pageCount() > 1) {
         <nav class="orders-pagination" aria-label="Paginación del catálogo">
           <button type="button" (click)="previousPage()" [disabled]="pageIndex() === 0">Anterior</button>
           <span>Página {{ pageIndex() + 1 }} de {{ pageCount() }}</span>

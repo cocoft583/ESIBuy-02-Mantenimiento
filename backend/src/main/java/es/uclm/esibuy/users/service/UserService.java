@@ -11,6 +11,7 @@ import es.uclm.esibuy.auth.passwordreset.repository.PasswordResetTokenRepository
 import es.uclm.esibuy.cart.model.Cart;
 import es.uclm.esibuy.cart.repository.CartRepository;
 import es.uclm.esibuy.configuration.service.GeneralConfigurationService;
+import es.uclm.esibuy.common.exception.AccountPendingException;
 import es.uclm.esibuy.common.exception.DuplicateUserException;
 import es.uclm.esibuy.common.exception.InvalidCredentialsException;
 import es.uclm.esibuy.common.exception.UserDeletionConflictException;
@@ -26,6 +27,7 @@ import es.uclm.esibuy.users.dto.UpdateOwnProfileRequestDTO;
 import es.uclm.esibuy.users.dto.UserProfileResponse;
 import es.uclm.esibuy.users.model.AdminProfile;
 import es.uclm.esibuy.users.model.ClientProfile;
+import es.uclm.esibuy.users.model.ReservedAccounts;
 import es.uclm.esibuy.users.model.SellerProfile;
 import es.uclm.esibuy.users.model.User;
 import es.uclm.esibuy.users.model.UserRole;
@@ -44,7 +46,6 @@ import es.uclm.esibuy.users.model.CustomerType;
 public class UserService {
 
     private static final String MSG_DUPLICATE_EMAIL = "No se ha podido completar el registro. Comprueba los datos introducidos e inténtalo de nuevo";
-    private static final String DELETED_CUSTOMER_EMAIL = "cliente.eliminado@esibuy.local";
 
     private final OrderRepository orderRepository;
     private final CartRepository cartRepository;
@@ -91,7 +92,7 @@ public class UserService {
     public User registerClient(ClientRegistrationRequest request, boolean isAutoActive) {
         ensureRegistrationEnabled();
         String email = request.getEmail().trim().toLowerCase(Locale.ROOT);
-        if (userRepository.existsByEmailIgnoreCase(email)) {
+        if (ReservedAccounts.isReserved(email) || userRepository.existsByEmailIgnoreCase(email)) {
             throw new DuplicateUserException(MSG_DUPLICATE_EMAIL);
         }
 
@@ -120,7 +121,7 @@ public class UserService {
     public User registerSeller(SellerRegistrationRequest request, boolean isAutoActive) {
         ensureRegistrationEnabled();
         String email = request.getEmail().trim().toLowerCase(Locale.ROOT);
-        if (userRepository.existsByEmailIgnoreCase(email)) {
+        if (ReservedAccounts.isReserved(email) || userRepository.existsByEmailIgnoreCase(email)) {
             throw new DuplicateUserException(MSG_DUPLICATE_EMAIL);
         }
         String businessName = request.getBusinessName().trim();
@@ -156,7 +157,7 @@ public class UserService {
 
     public User createAdmin(AdminCreateRequest request) {
         String email = request.getEmail().trim().toLowerCase(Locale.ROOT);
-        if (userRepository.existsByEmailIgnoreCase(email)) {
+        if (ReservedAccounts.isReserved(email) || userRepository.existsByEmailIgnoreCase(email)) {
             throw new DuplicateUserException(MSG_DUPLICATE_EMAIL);
         }
 
@@ -178,13 +179,17 @@ public class UserService {
     public User login(LoginRequest request) {
         String email = request.getEmail().trim().toLowerCase(Locale.ROOT);
         User user = userRepository.findByEmailIgnoreCase(email)
-                .filter(candidate -> candidate.isActive()
-                        && !candidate.isBlocked()
+                .filter(candidate -> !candidate.isBlocked()
                         && candidate.getPasswordHash() != null)
                 .orElseThrow(InvalidCredentialsException::new);
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
             throw new InvalidCredentialsException();
+        }
+
+        // Con la contraseña correcta, una cuenta inactiva espera la aprobación de un administrador
+        if (!user.isActive()) {
+            throw new AccountPendingException();
         }
 
         if (passwordEncoder.upgradeEncoding(user.getPasswordHash())) {
@@ -283,10 +288,10 @@ public class UserService {
     }
 
     private User getOrCreateDeletedCustomer() {
-        return userRepository.findByEmailIgnoreCase(DELETED_CUSTOMER_EMAIL)
+        return userRepository.findByEmailIgnoreCase(ReservedAccounts.DELETED_CUSTOMER_ID)
                 .orElseGet(() -> {
                     User deletedCustomer = new User(
-                            DELETED_CUSTOMER_EMAIL,
+                            ReservedAccounts.DELETED_CUSTOMER_ID,
                             "Cliente",
                             "eliminado",
                             UserRole.CLIENT);

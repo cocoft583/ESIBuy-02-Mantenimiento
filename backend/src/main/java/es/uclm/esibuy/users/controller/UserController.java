@@ -3,6 +3,7 @@ package es.uclm.esibuy.users.controller;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -24,6 +25,7 @@ import es.uclm.esibuy.security.service.LoginAttemptService;
 import es.uclm.esibuy.security.service.SessionAuthenticationService;
 import es.uclm.esibuy.security.service.TwoFactorAuthenticationService;
 import es.uclm.esibuy.users.dto.AdminCreateRequest;
+import es.uclm.esibuy.users.dto.ChangeCustomerTypeRequest;
 import es.uclm.esibuy.users.dto.ClientRegistrationRequest;
 import es.uclm.esibuy.users.dto.EmailOtpSettingsRequest;
 import es.uclm.esibuy.users.dto.LoginRequest;
@@ -39,7 +41,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
-import es.uclm.esibuy.users.dto.ChangeCustomerTypeRequest;
 
 @RestController
 @RequestMapping("/api/users")
@@ -56,18 +57,21 @@ public class UserController {
     private final TwoFactorAuthenticationService twoFactorAuthenticationService;
     private static final String PENDING_OTP_USER_ID = "PENDING_OTP_USER_ID";
     private final EmailOtpService emailOtpService;
+    private final long emailOtpValiditySeconds;
 
     public UserController(
             UserService userService,
             LoginAttemptService loginAttemptService,
             SessionAuthenticationService sessionAuthenticationService,
             TwoFactorAuthenticationService twoFactorAuthenticationService,
-            EmailOtpService emailOtpService) {
+            EmailOtpService emailOtpService,
+            @Value("${app.security.email-otp.validity-seconds}") long emailOtpValiditySeconds) {
         this.userService = userService;
         this.loginAttemptService = loginAttemptService;
         this.sessionAuthenticationService = sessionAuthenticationService;
         this.twoFactorAuthenticationService = twoFactorAuthenticationService;
         this.emailOtpService = emailOtpService;
+        this.emailOtpValiditySeconds = emailOtpValiditySeconds;
     }
 
     @PostMapping("/register/client")
@@ -135,7 +139,7 @@ public class UserController {
             emailOtpService.issueChallenge(user);
 
             HttpSession session = servletRequest.getSession(true);
-            session.setMaxInactiveInterval(30 * 60);
+            session.setMaxInactiveInterval(Math.toIntExact(emailOtpValiditySeconds));
             session.setAttribute(PENDING_OTP_USER_ID, user.getId());
 
             SecurityContextHolder.clearContext();
@@ -143,7 +147,7 @@ public class UserController {
             return ResponseEntity.accepted().body(
                     Map.of(
                             "requires3fa", true,
-                            "expiresInSeconds", 600));
+                            "expiresInSeconds", emailOtpValiditySeconds));
         }
         // CLIENT mantiene el comportamiento actual.
         loginAttemptService.loginSucceeded(
@@ -244,12 +248,19 @@ public class UserController {
 
     @PostMapping("/2fa/setup")
     public ResponseEntity<Map<String, String>> setup2FA(
+            @RequestBody(required = false) Map<String, String> body,
             @AuthenticationPrincipal AuthenticatedUserPrincipal principal) {
         if (principal == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        String secret = twoFactorAuthenticationService.setup(principal.id());
+        TwoFactorAuthenticationService.SetupResult result = twoFactorAuthenticationService.setup(principal.id(),
+                body != null ? body.get("code") : null);
+        if (result.status() == TwoFactorAuthenticationService.Status.INVALID_CODE) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of(MESSAGE_KEY, "El código introducido es incorrecto"));
+        }
+        String secret = result.secret();
         String qrUri = String.format("otpauth://totp/ESIBuy:%s?secret=%s&issuer=ESIBuy", principal.email(), secret);
         return ResponseEntity.ok(Map.of("secret", secret, "qrUri", qrUri));
     }
@@ -467,7 +478,7 @@ public class UserController {
         return ResponseEntity.ok(Map.of(
                 MESSAGE_KEY,
                 "Hemos enviado un código de verificación a tu correo.",
-                "expiresInSeconds", 600));
+                "expiresInSeconds", emailOtpValiditySeconds));
     }
 
     @PostMapping("/me/email-otp-settings/disable")

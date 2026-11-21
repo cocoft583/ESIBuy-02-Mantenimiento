@@ -8,17 +8,21 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.util.Optional;
 
+import es.uclm.esibuy.common.exception.OtpDeliveryException;
 import es.uclm.esibuy.security.model.EmailOtpChallenge;
 import es.uclm.esibuy.security.repository.EmailOtpChallengeRepository;
 import es.uclm.esibuy.users.model.User;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -43,12 +47,35 @@ class EmailOtpServiceTest {
 
         private EmailOtpService service;
 
+        private static final long VALIDITY_SECONDS = 120;
+
         @BeforeEach
         void setUp() {
                 service = new EmailOtpService(
                                 repository,
                                 passwordEncoder,
-                                otpMailSender);
+                                otpMailSender,
+                                VALIDITY_SECONDS);
+        }
+
+        @Test
+        @DisplayName("HU6-CP01: el desafío caduca según la validez configurada")
+        void issuedChallengeExpiresAfterConfiguredValidity() {
+                when(user.getId()).thenReturn("user-1");
+                when(user.getEmail()).thenReturn("user@example.com");
+                when(passwordEncoder.encode(anyString())).thenReturn("hashed-code");
+
+                Instant before = Instant.now();
+                service.issueChallenge(user);
+                Instant after = Instant.now();
+
+                ArgumentCaptor<EmailOtpChallenge> captor = ArgumentCaptor.forClass(EmailOtpChallenge.class);
+                verify(repository).save(captor.capture());
+
+                Instant expiresAt = captor.getValue().getExpiresAt();
+
+                assertFalse(expiresAt.isBefore(before.plusSeconds(VALIDITY_SECONDS)));
+                assertFalse(expiresAt.isAfter(after.plusSeconds(VALIDITY_SECONDS)));
         }
 
         @Test
@@ -81,6 +108,19 @@ class EmailOtpServiceTest {
 
                 assertNotNull(codeCaptor.getValue());
                 assertTrue(codeCaptor.getValue().matches("\\d{6}"));
+        }
+
+        @Test
+        void removesTheChallengeWhenTheCodeCannotBeSent() {
+                when(user.getId()).thenReturn("user-1");
+                when(user.getEmail()).thenReturn("user@example.com");
+                when(passwordEncoder.encode(anyString())).thenReturn("hashed-code");
+                doThrow(new OtpDeliveryException(new RuntimeException("smtp")))
+                                .when(otpMailSender).sendOtp(anyString(), anyString());
+
+                assertThrows(OtpDeliveryException.class, () -> service.issueChallenge(user));
+
+                verify(repository, times(2)).deleteByUserIdAndPurpose("user-1", "LOGIN");
         }
 
         @Test

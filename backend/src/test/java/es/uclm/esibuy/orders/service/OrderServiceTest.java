@@ -14,7 +14,9 @@ import es.uclm.esibuy.common.exception.PagoFallidoException;
 import es.uclm.esibuy.common.exception.PedidoNotFoundException;
 import es.uclm.esibuy.common.exception.RecursoCheckoutNoEncontradoException;
 import es.uclm.esibuy.common.exception.StockInsuficienteException;
+import es.uclm.esibuy.orders.dto.CheckoutSummaryDTO;
 import es.uclm.esibuy.orders.dto.CreateOrderDTO;
+import es.uclm.esibuy.orders.dto.CustomerOrderDTO;
 import es.uclm.esibuy.orders.dto.OrderConfirmationDTO;
 import es.uclm.esibuy.orders.dto.OrderStatusHistoryDTO;
 import es.uclm.esibuy.orders.dto.SellerOrderDTO;
@@ -37,6 +39,7 @@ import es.uclm.esibuy.users.model.UserRole;
 import es.uclm.esibuy.users.repository.UserRepository;
 import es.uclm.esibuy.products.model.ProductDetails;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -51,11 +54,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -146,6 +151,19 @@ class OrderServiceTest {
         }
 
         @Test
+        @DisplayName("HU18-CP12: un cliente solo lista los pedidos asignados a su propio identificador")
+        void shouldListOnlyTheOrdersOfTheRequestingCustomer() {
+                when(orderRepository.findAllByCustomerIdOrderByCreatedAtDesc(CUSTOMER_ID))
+                                .thenReturn(List.of());
+
+                List<CustomerOrderDTO> result = orderService.getCustomerOrders(CUSTOMER_ID);
+
+                assertTrue(result.isEmpty());
+                verify(orderRepository).findAllByCustomerIdOrderByCreatedAtDesc(CUSTOMER_ID);
+                verifyNoMoreInteractions(orderRepository);
+        }
+
+        @Test
         void shouldChargeCreatePaidPendingOrderDeductStockAndEmptyCart() {
                 prepareCartAndProduct(productWithStock(5));
                 enableStockReservation();
@@ -216,12 +234,14 @@ class OrderServiceTest {
         }
 
         @Test
-        void shouldPreserveDiscountedUnitPriceFromCartWhenCreatingOrder() {
+        void shouldChargeTheCurrentDiscountedPriceWhenCreatingOrder() {
                 Cart cartWithDiscount = new Cart(CUSTOMER_ID);
                 cartWithDiscount.addOrIncrementItem(PRODUCT_ID, "Auriculares", new BigDecimal("85.00"), 1);
 
+                // El producto cuesta 100 con un 15 % de descuento: el precio actual es 85
                 Product catalogProduct = productWithStock(5);
                 catalogProduct.setPrice(new BigDecimal("100.00"));
+                catalogProduct.setDiscount(new BigDecimal("15"));
 
                 when(cartRepository.findByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(cartWithDiscount));
                 when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(catalogProduct));
@@ -238,6 +258,166 @@ class OrderServiceTest {
                 assertEquals(1, capturedOrder.getItems().size());
                 assertEquals(new BigDecimal("85.00"), capturedOrder.getItems().get(0).unitPrice());
                 assertEquals(new BigDecimal("85.00"), capturedOrder.getItems().get(0).subtotal());
+        }
+
+        private Product productAtCurrentPrice(String price, String discount, String premiumDiscount) {
+                Product product = new Product(new ProductDetails(
+                                "Auriculares",
+                                List.of("categoria-1"),
+                                5,
+                                "Audio",
+                                price != null ? new BigDecimal(price) : null,
+                                discount != null ? new BigDecimal(discount) : null,
+                                premiumDiscount != null ? new BigDecimal(premiumDiscount) : null,
+                                null,
+                                true,
+                                "vendedor-1"));
+
+                org.springframework.test.util.ReflectionTestUtils.setField(
+                                product, "id", PRODUCT_ID);
+
+                return product;
+        }
+
+        private void makeTheCustomerPremium() {
+                userRepository.findById(CUSTOMER_ID)
+                                .orElseThrow()
+                                .getClientProfile()
+                                .setCustomerType(CustomerType.PREMIUM);
+        }
+
+        private void storeInTheCartAtPrice(String storedPrice) {
+                cart = new Cart(CUSTOMER_ID);
+                cart.addOrIncrementItem(PRODUCT_ID, "Auriculares", new BigDecimal(storedPrice), 2);
+        }
+
+        private Order placeOrderWith(Product product) {
+                prepareCartAndProduct(product);
+                enableStockReservation();
+                when(paymentGateway.charge(any(), any())).thenReturn(true);
+                when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+                orderService.createOrder(CUSTOMER_ID, new CreateOrderDTO("direccion-1", "pago-1"));
+
+                ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+                verify(orderRepository).save(orderCaptor.capture());
+
+                return orderCaptor.getValue();
+        }
+
+        private void assertChargedAndSaved(Order order, String unitPrice, String total) {
+                verify(paymentGateway).charge(any(), eq(new BigDecimal(total)));
+                assertEquals(new BigDecimal(total), order.getTotalPrice());
+                assertEquals(new BigDecimal(unitPrice), order.getItems().get(0).unitPrice());
+                assertEquals(new BigDecimal(total), order.getItems().get(0).subtotal());
+        }
+
+        @Test
+        @DisplayName("HU12-CP18: si el precio sube tras añadirlo al carrito, se cobra el precio nuevo")
+        void shouldChargeTheNewPriceWhenTheProductGotMoreExpensive() {
+                Order order = placeOrderWith(productAtCurrentPrice("25.00", null, null));
+
+                assertChargedAndSaved(order, "25.00", "50.00");
+        }
+
+        @Test
+        @DisplayName("HU12-CP19: si el precio baja tras añadirlo al carrito, se cobra el precio nuevo")
+        void shouldChargeTheNewPriceWhenTheProductGotCheaper() {
+                Order order = placeOrderWith(productAtCurrentPrice("10.00", null, null));
+
+                assertChargedAndSaved(order, "10.00", "20.00");
+        }
+
+        @Test
+        @DisplayName("HU12-CP20: si el vendedor cambia el descuento, se cobra con el descuento actual")
+        void shouldChargeWithTheCurrentDiscount() {
+                storeInTheCartAtPrice("90.00");
+
+                Order order = placeOrderWith(productAtCurrentPrice("100.00", "20", null));
+
+                assertChargedAndSaved(order, "80.00", "160.00");
+        }
+
+        @Test
+        @DisplayName("HU12-CP21: si el cliente pasa a premium, se cobra con el descuento premium")
+        void shouldChargeThePremiumPriceWhenTheCustomerBecamePremium() {
+                storeInTheCartAtPrice("100.00");
+                makeTheCustomerPremium();
+
+                Order order = placeOrderWith(productAtCurrentPrice("100.00", "10", "5"));
+
+                assertChargedAndSaved(order, "85.00", "170.00");
+        }
+
+        @Test
+        @DisplayName("HU12-CP22: si el cliente deja de ser premium, se cobra el precio estándar")
+        void shouldChargeTheStandardPriceWhenTheCustomerIsNoLongerPremium() {
+                storeInTheCartAtPrice("85.00");
+
+                Order order = placeOrderWith(productAtCurrentPrice("100.00", "10", "5"));
+
+                assertChargedAndSaved(order, "90.00", "180.00");
+        }
+
+        @Test
+        @DisplayName("HU12-CP23: si el producto no tiene precio, se cobra el guardado en el carrito")
+        void shouldChargeTheStoredPriceWhenTheProductHasNoPrice() {
+                Order order = placeOrderWith(productAtCurrentPrice(null, null, null));
+
+                assertChargedAndSaved(order, "19.99", "39.98");
+        }
+
+        @Test
+        @DisplayName("HU12-CP24: el resumen del checkout muestra el precio actual y no el guardado")
+        void shouldShowTheCurrentPriceInTheCheckoutSummary() {
+                prepareCartAndProduct(productAtCurrentPrice("25.00", null, null));
+
+                CheckoutSummaryDTO summary = orderService.getCheckoutSummary(CUSTOMER_ID);
+
+                assertEquals(new BigDecimal("25.00"), summary.items().get(0).unitPrice());
+                assertEquals(new BigDecimal("50.00"), summary.items().get(0).subtotal());
+                assertEquals(new BigDecimal("50.00"), summary.subtotal());
+                assertEquals(new BigDecimal("50.00"), summary.totalPrice());
+        }
+
+        @Test
+        @DisplayName("HU12-CP25: el resumen del checkout aplica el descuento premium a un cliente premium")
+        void shouldShowThePremiumPriceInTheCheckoutSummary() {
+                storeInTheCartAtPrice("100.00");
+                makeTheCustomerPremium();
+                prepareCartAndProduct(productAtCurrentPrice("100.00", "10", "5"));
+
+                CheckoutSummaryDTO summary = orderService.getCheckoutSummary(CUSTOMER_ID);
+
+                assertEquals(new BigDecimal("85.00"), summary.items().get(0).unitPrice());
+                assertEquals(new BigDecimal("170.00"), summary.totalPrice());
+        }
+
+        @Test
+        @DisplayName("HU12-CP26: el total del resumen coincide con el importe que se cobra al confirmar")
+        void shouldChargeExactlyTheTotalShownInTheCheckoutSummary() {
+                storeInTheCartAtPrice("90.00");
+                Product product = productAtCurrentPrice("100.00", "20", null);
+                prepareCartAndProduct(product);
+                enableStockReservation();
+                when(paymentGateway.charge(any(), any())).thenReturn(true);
+                when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+                CheckoutSummaryDTO summary = orderService.getCheckoutSummary(CUSTOMER_ID);
+                orderService.createOrder(CUSTOMER_ID, new CreateOrderDTO("direccion-1", "pago-1"));
+
+                verify(paymentGateway).charge(any(), eq(summary.totalPrice()));
+        }
+
+        @Test
+        @DisplayName("HU12-CP27: si el producto no tiene precio, el resumen muestra el guardado en el carrito")
+        void shouldShowTheStoredPriceInTheSummaryWhenTheProductHasNoPrice() {
+                prepareCartAndProduct(productAtCurrentPrice(null, null, null));
+
+                CheckoutSummaryDTO summary = orderService.getCheckoutSummary(CUSTOMER_ID);
+
+                assertEquals(new BigDecimal("19.99"), summary.items().get(0).unitPrice());
+                assertEquals(new BigDecimal("39.98"), summary.items().get(0).subtotal());
         }
 
         @Test

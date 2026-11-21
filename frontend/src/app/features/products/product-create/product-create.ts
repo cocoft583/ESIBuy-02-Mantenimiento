@@ -17,6 +17,7 @@ interface ProductFormControls {
   descuento: FormControl<number | null>;
   descuentoPremium: FormControl<number | null>;
   disponible: FormControl<boolean | null>;
+  exclusivoPremium: FormControl<boolean>;
 }
 
 type ProductFormField = keyof ProductFormControls;
@@ -37,6 +38,7 @@ const SERVER_FIELD_TO_FORM_FIELD: Readonly<Partial<Record<string, ProductFormFie
   descuentoPremium: 'descuentoPremium',
   available: 'disponible',
   disponible: 'disponible',
+  premiumOnly: 'exclusivoPremium',
 };
 
 @Component({
@@ -91,6 +93,7 @@ export class ProductCreate implements OnInit {
       Validators.max(100),
     ]),
     disponible: new FormControl<boolean | null>(true, [Validators.required]),
+    exclusivoPremium: new FormControl(false, { nonNullable: true }),
   });
 
   categories: Category[] = [];
@@ -251,6 +254,7 @@ export class ProductCreate implements OnInit {
             descuento: product.discount,
             descuentoPremium: product.premiumDiscount,
             disponible: product.available,
+            exclusivoPremium: product.premiumOnly ?? false,
           });
           this.updateVatPreview(basePrice);
 
@@ -437,6 +441,8 @@ export class ProductCreate implements OnInit {
       categoryIds: value.categoriaIds,
       price: priceWithVat,
       available: value.disponible ?? false,
+      // Siempre se envía para que al editar se pueda quitar la exclusividad (HU15).
+      premiumOnly: value.exclusivoPremium,
     };
 
     if (value.stock !== null) {

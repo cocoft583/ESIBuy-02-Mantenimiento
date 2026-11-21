@@ -25,7 +25,9 @@ public record CartItemDTO(
 
         @JsonProperty("descuento") BigDecimal discount,
 
-        @JsonProperty("esDescuentoPremium") Boolean isPremiumDiscount) {
+        @JsonProperty("esDescuentoPremium") Boolean isPremiumDiscount,
+
+        @JsonProperty("stockDisponible") Integer availableStock) {
 
     public CartItemDTO(
             String productId,
@@ -35,7 +37,7 @@ public record CartItemDTO(
             BigDecimal subtotal) {
 
         this(productId, name, unitPrice, quantity, subtotal,
-                null, null, null, unitPrice, BigDecimal.ZERO, false);
+                null, null, null, unitPrice, BigDecimal.ZERO, false, null);
     }
 
     public CartItemDTO(
@@ -47,7 +49,7 @@ public record CartItemDTO(
             String imageUrl) {
 
         this(productId, name, unitPrice, quantity, subtotal,
-                imageUrl, null, null, unitPrice, BigDecimal.ZERO, false);
+                imageUrl, null, null, unitPrice, BigDecimal.ZERO, false, null);
     }
 
     public CartItemDTO(
@@ -60,7 +62,7 @@ public record CartItemDTO(
             String sellerId) {
 
         this(productId, name, unitPrice, quantity, subtotal,
-                imageUrl, sellerId, null, unitPrice, BigDecimal.ZERO, false);
+                imageUrl, sellerId, null, unitPrice, BigDecimal.ZERO, false, null);
     }
 
     public CartItemDTO(
@@ -74,7 +76,7 @@ public record CartItemDTO(
             String sellerName) {
 
         this(productId, name, unitPrice, quantity, subtotal,
-                imageUrl, sellerId, sellerName, unitPrice, BigDecimal.ZERO, false);
+                imageUrl, sellerId, sellerName, unitPrice, BigDecimal.ZERO, false, null);
     }
 
     public CartItemDTO(
@@ -89,6 +91,6 @@ public record CartItemDTO(
             Boolean isPremiumDiscount) {
 
         this(productId, name, unitPrice, quantity, subtotal,
-                imageUrl, null, null, originalPrice, discount, isPremiumDiscount);
+                imageUrl, null, null, originalPrice, discount, isPremiumDiscount, null);
     }
 }

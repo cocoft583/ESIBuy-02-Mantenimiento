@@ -14,6 +14,7 @@ import es.uclm.esibuy.users.model.User;
 import es.uclm.esibuy.users.model.UserRole;
 import es.uclm.esibuy.users.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -221,6 +222,18 @@ class AdminServiceTest {
     }
 
     @Test
+    @DisplayName("HU18-CP11: el alta de administrador rechaza un correo del dominio reservado")
+    void shouldRejectAdminCreationWithAnEmailOfTheReservedDomain() {
+        AltaAdminDTO request = new AltaAdminDTO(
+                "12345678Z", "Carlos", "Gómez Pérez", "admin.reservado@esibuy.local",
+                "Admin123456!#", "Admin123456!#", "Ciudad Real", null);
+
+        assertThrows(DuplicateUserException.class, () -> adminService.createAdmin(request));
+
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
     void shouldRejectAdminCreationWhenPasswordIsCompromised() {
         AltaAdminDTO request = new AltaAdminDTO(
                 "12345678Z",
@@ -246,6 +259,28 @@ class AdminServiceTest {
         verify(compromisedPasswordService).validatePassword("Admin123456!#");
         verify(userRepository, never()).save(any(User.class));
         verify(passwordEncoder, never()).encode(any());
+    }
+
+    @Test
+    void blockUserRevokesOpenSessions() {
+        User user = new User("cliente@esibuy.com", "Ana", "López", UserRole.CLIENT);
+        when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
+
+        adminService.blockUser("user-1");
+
+        assertEquals(1, user.getSessionVersion());
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    void deactivateUserRevokesOpenSessions() {
+        User user = new User("cliente@esibuy.com", "Ana", "López", UserRole.CLIENT);
+        when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
+
+        adminService.deactivateUser("user-1");
+
+        assertEquals(1, user.getSessionVersion());
+        verify(userRepository).save(user);
     }
 
 }

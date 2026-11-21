@@ -70,50 +70,14 @@ export class ClientCatalog implements OnInit {
   readonly favoriteUpdating = signal<Record<string, boolean>>({});
   readonly cartAdding = signal<Record<string, boolean>>({});
 
-  products = computed(() => {
-    let result = [...this.catalogProducts()];
-
-    if (this.onlyOffers()) {
-      result = result.filter(
-        (product) =>
-          (product.discount ?? 0) > 0 ||
-          (product.premiumDiscount ?? 0) > 0
-      );
-    }
-
-    switch (this.sortOrder()) {
-      case 'rating-desc':
-        result.sort((a, b) => {
-          if (a.rating == null) return b.rating == null ? 0 : 1;
-          if (b.rating == null) return -1;
-          return b.rating - a.rating;
-        });
-        break;
-      case 'rating-asc':
-        result.sort((a, b) => {
-          if (a.rating == null) return b.rating == null ? 0 : 1;
-          if (b.rating == null) return -1;
-          return a.rating - b.rating;
-        });
-        break;
-      case 'price-asc':
-        result.sort((a, b) => a.price - b.price);
-        break;
-      case 'price-desc':
-        result.sort((a, b) => b.price - a.price);
-        break;
-    }
-
-    return result;
-  });
+  // El servidor devuelve ya filtrada, ordenada y paginada la página que se ve
+  readonly products = this.catalogProducts.asReadonly();
+  readonly totalElements = signal(0);
+  private readonly totalPages = signal(0);
 
   readonly pageIndex = signal(0);
   readonly pageSize = 12;
-  readonly pageCount = computed(() => Math.max(1, Math.ceil(this.products().length / this.pageSize)));
-  readonly visibleProducts = computed(() => {
-    const start = this.pageIndex() * this.pageSize;
-    return this.products().slice(start, start + this.pageSize);
-  });
+  readonly pageCount = computed(() => Math.max(1, this.totalPages()));
 
   // Filtros del catálogo
   searchQuery = signal('');
@@ -154,7 +118,6 @@ export class ClientCatalog implements OnInit {
   }
 
   loadProducts(): void {
-    this.pageIndex.set(0);
     this.loading.set(true);
     this.error.set(false);
 
@@ -165,19 +128,20 @@ export class ClientCatalog implements OnInit {
       maxPrice: this.maxPrice() ?? undefined,
       minRating: this.minRating() ?? undefined,
       inStock: this.onlyInStock() || undefined,
+      onlyOffers: this.onlyOffers() || undefined,
+      sort: this.sortOrder(),
+      page: this.pageIndex(),
+      size: this.pageSize,
     }).subscribe({
-      next: (items) => {
+      next: (page) => {
         if (!this.priceLimitInitialized) {
-          const highestPrice = items.reduce(
-            (highest, product) => Math.max(highest, product.price),
-            0
-          );
-
-          this.priceLimit.set(Math.max(1, Math.ceil(highestPrice)));
+          this.priceLimit.set(Math.max(1, Math.ceil(page.maxPrice)));
           this.priceLimitInitialized = true;
         }
 
-        this.catalogProducts.set(items);
+        this.catalogProducts.set(page.content);
+        this.totalElements.set(page.totalElements);
+        this.totalPages.set(page.totalPages);
         this.loading.set(false);
       },
       error: () => {
@@ -193,15 +157,23 @@ export class ClientCatalog implements OnInit {
   }
 
   previousPage(): void {
-    this.pageIndex.update((page) => Math.max(0, page - 1));
+    if (this.pageIndex() === 0) {
+      return;
+    }
+    this.pageIndex.update((page) => page - 1);
+    this.loadProducts();
   }
 
   nextPage(): void {
-    this.pageIndex.update((page) => Math.min(this.pageCount() - 1, page + 1));
+    if (this.pageIndex() >= this.pageCount() - 1) {
+      return;
+    }
+    this.pageIndex.update((page) => page + 1);
+    this.loadProducts();
   }
 
   pageLabel(): string {
-    const count = this.products().length;
+    const count = this.totalElements();
     if (count === 0) {
       return '0 productos';
     }

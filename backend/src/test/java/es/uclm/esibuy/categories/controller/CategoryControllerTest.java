@@ -51,8 +51,9 @@ class CategoryControllerTest {
         assertNotNull(csrfCookie);
         assertFalse(csrfCookie.isHttpOnly());
         assertTrue(result.getResponse().getHeader("Set-Cookie").contains("Secure"));
+        assertEquals("None", csrfCookie.getAttribute("SameSite"));
         assertEquals("true", environment.getProperty("server.servlet.session.cookie.http-only"));
-        assertEquals("Lax", environment.getProperty("server.servlet.session.cookie.same-site"));
+        assertEquals("None", environment.getProperty("server.servlet.session.cookie.same-site"));
         assertEquals("true", environment.getProperty("server.servlet.session.cookie.secure"));
     }
 

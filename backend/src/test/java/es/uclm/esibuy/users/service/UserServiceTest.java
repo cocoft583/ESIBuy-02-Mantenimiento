@@ -2,6 +2,7 @@ package es.uclm.esibuy.users.service;
 
 import java.time.LocalDate;
 
+import es.uclm.esibuy.common.exception.AccountPendingException;
 import es.uclm.esibuy.common.exception.DuplicateUserException;
 import es.uclm.esibuy.common.exception.InvalidCredentialsException;
 import es.uclm.esibuy.configuration.service.GeneralConfigurationService;
@@ -24,6 +25,7 @@ import es.uclm.esibuy.security.repository.EmailOtpChallengeRepository;
 import es.uclm.esibuy.auth.passwordreset.repository.PasswordResetTokenRepository;
 import es.uclm.esibuy.security.repository.LoginAttemptRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -175,6 +177,51 @@ class UserServiceTest {
                 when(userRepository.existsByEmailIgnoreCase("ana@example.com")).thenReturn(true);
 
                 assertThrows(DuplicateUserException.class, () -> userService.registerClient(request));
+        }
+
+        @Test
+        @DisplayName("HU18-CP07: no se puede registrar un cliente con el identificador reservado")
+        void shouldRejectClientRegistrationWithTheReservedIdentifier() {
+                ClientRegistrationRequest request = new ClientRegistrationRequest();
+                request.setEmail("cliente-eliminado");
+
+                assertThrows(DuplicateUserException.class, () -> userService.registerClient(request));
+
+                verify(userRepository, never()).save(any(User.class));
+        }
+
+        @Test
+        @DisplayName("HU18-CP08: no se puede registrar un cliente con un correo del dominio reservado")
+        void shouldRejectClientRegistrationWithAnEmailOfTheReservedDomain() {
+                ClientRegistrationRequest request = new ClientRegistrationRequest();
+                request.setEmail("Cliente.Eliminado@esibuy.local");
+
+                assertThrows(DuplicateUserException.class, () -> userService.registerClient(request));
+
+                verify(userRepository, never()).save(any(User.class));
+        }
+
+        @Test
+        @DisplayName("HU18-CP09: no se puede registrar un vendedor con un correo del dominio reservado")
+        void shouldRejectSellerRegistrationWithAnEmailOfTheReservedDomain() {
+                SellerRegistrationRequest request = new SellerRegistrationRequest();
+                request.setEmail("vendedor@esibuy.local");
+                request.setBusinessName("Tienda");
+
+                assertThrows(DuplicateUserException.class, () -> userService.registerSeller(request));
+
+                verify(userRepository, never()).save(any(User.class));
+        }
+
+        @Test
+        @DisplayName("HU18-CP10: no se puede crear un administrador con un correo del dominio reservado")
+        void shouldRejectAdminCreationWithAnEmailOfTheReservedDomain() {
+                AdminCreateRequest request = new AdminCreateRequest();
+                request.setEmail("admin@esibuy.local");
+
+                assertThrows(DuplicateUserException.class, () -> userService.createAdmin(request));
+
+                verify(userRepository, never()).save(any(User.class));
         }
 
         @Test
@@ -342,7 +389,7 @@ class UserServiceTest {
         }
 
         @Test
-        void shouldRejectLoginWhenAccountIsInactive() {
+        void shouldRejectLoginWhenAccountIsInactiveAndPasswordIsWrong() {
                 LoginRequest request = new LoginRequest();
                 request.setEmail("seller@example.com");
                 request.setPassword("Password123!");
@@ -353,8 +400,29 @@ class UserServiceTest {
 
                 when(userRepository.findByEmailIgnoreCase("seller@example.com"))
                                 .thenReturn(java.util.Optional.of(seller));
+                when(passwordEncoder.matches("Password123!", "hashed-pwd")).thenReturn(false);
 
                 assertThrows(InvalidCredentialsException.class, () -> userService.login(request));
+        }
+
+        @Test
+        @DisplayName("HU17-CP01: con la contraseña correcta y la cuenta pendiente se avisa de que espera aprobación")
+        void shouldReportPendingApprovalWhenAccountIsInactiveAndPasswordIsCorrect() {
+                LoginRequest request = new LoginRequest();
+                request.setEmail("seller@example.com");
+                request.setPassword("Password123!");
+
+                User seller = new User("seller@example.com", "Carlos", "Lopez", UserRole.SELLER);
+                seller.setActive(false);
+                seller.setPasswordHash("hashed-pwd");
+
+                when(userRepository.findByEmailIgnoreCase("seller@example.com"))
+                                .thenReturn(java.util.Optional.of(seller));
+                when(passwordEncoder.matches("Password123!", "hashed-pwd")).thenReturn(true);
+
+                assertThrows(AccountPendingException.class, () -> userService.login(request));
+
+                verify(userRepository, never()).save(any(User.class));
         }
 
         @Test
@@ -611,7 +679,7 @@ class UserServiceTest {
                 when(userRepository.findById("client-1"))
                                 .thenReturn(Optional.of(client));
 
-                when(userRepository.findByEmailIgnoreCase("cliente.eliminado@esibuy.local"))
+                when(userRepository.findByEmailIgnoreCase("cliente-eliminado"))
                                 .thenReturn(Optional.empty());
 
                 when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
@@ -631,7 +699,7 @@ class UserServiceTest {
 
                 User deletedCustomer = userCaptor.getValue();
 
-                assertEquals("cliente.eliminado@esibuy.local", deletedCustomer.getEmail());
+                assertEquals("cliente-eliminado", deletedCustomer.getEmail());
                 assertEquals("Cliente", deletedCustomer.getFirstName());
                 assertEquals("eliminado", deletedCustomer.getLastName());
                 assertEquals(UserRole.CLIENT, deletedCustomer.getRole());
@@ -653,6 +721,39 @@ class UserServiceTest {
                 verify(passwordResetTokenRepository).deleteAllByUserId("client-1");
                 verify(loginAttemptRepository).deleteAllByEmail("ana@example.com");
 
+                verify(userRepository).delete(client);
+        }
+
+        @Test
+        @DisplayName("HU18-CP13: al eliminar un cliente todos sus pedidos pasan al usuario técnico y se anonimizan")
+        void shouldReassignAndAnonymizeEveryOrderOfTheDeletedClient() {
+                User client = new User(
+                                "ana@example.com",
+                                "Ana",
+                                "García",
+                                UserRole.CLIENT);
+                ReflectionTestUtils.setField(client, "id", "client-1");
+
+                User technicalCustomer = org.mockito.Mockito.mock(User.class);
+                when(technicalCustomer.getId()).thenReturn("technical-customer");
+
+                Order firstOrder = org.mockito.Mockito.mock(Order.class);
+                Order secondOrder = org.mockito.Mockito.mock(Order.class);
+
+                when(userRepository.findById("client-1")).thenReturn(Optional.of(client));
+                when(userRepository.findByEmailIgnoreCase(org.mockito.ArgumentMatchers.anyString()))
+                                .thenReturn(Optional.of(technicalCustomer));
+                when(orderRepository.findAllByCustomerIdOrderByCreatedAtDesc("client-1"))
+                                .thenReturn(List.of(firstOrder, secondOrder));
+
+                userService.deleteOwnAccount("client-1");
+
+                verify(firstOrder).setCustomerId("technical-customer");
+                verify(firstOrder).anonymizeCustomerData();
+                verify(orderRepository).save(firstOrder);
+                verify(secondOrder).setCustomerId("technical-customer");
+                verify(secondOrder).anonymizeCustomerData();
+                verify(orderRepository).save(secondOrder);
                 verify(userRepository).delete(client);
         }
 
