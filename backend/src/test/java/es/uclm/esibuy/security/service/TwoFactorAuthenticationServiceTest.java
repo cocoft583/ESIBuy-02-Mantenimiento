@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.OptionalLong;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -133,6 +134,59 @@ class TwoFactorAuthenticationServiceTest {
         assertFalse(backupCodes.isEmpty());
         verify(user).setTotpLastUsedStep(100);
         verify(userService).save(user);
+    }
+
+    @Test
+    @DisplayName("HU10-CP06: un código TOTP ya usado no deja entrar otra vez")
+    void rejectsTotpFromAlreadyUsedTimeStep() {
+        prepareSecret("raw-secret");
+        when(totpService.findMatchingTimeStep("raw-secret", "654321")).thenReturn(OptionalLong.of(100));
+        when(user.getTotpLastUsedStep()).thenReturn(100L);
+        when(user.getBackupCodeHashes()).thenReturn(hashed("12345678"));
+
+        assertFalse(service.verifyLoginCode(user, "654321"));
+
+        verify(user, never()).setTotpLastUsedStep(org.mockito.ArgumentMatchers.anyLong());
+        verify(userService, never()).save(user);
+    }
+
+    @Test
+    @DisplayName("HU10-CP07: un código TOTP de un periodo anterior al último usado se rechaza")
+    void rejectsTotpFromOlderTimeStepThanTheLastUsed() {
+        prepareSecret("raw-secret");
+        when(totpService.findMatchingTimeStep("raw-secret", "654321")).thenReturn(OptionalLong.of(99));
+        when(user.getTotpLastUsedStep()).thenReturn(100L);
+
+        assertFalse(service.verifyLoginCode(user, "654321"));
+
+        verify(userService, never()).save(user);
+    }
+
+    @Test
+    @DisplayName("HU10-CP08: un código TOTP de un periodo posterior al último usado se acepta y se guarda")
+    void acceptsTotpFromNewerTimeStepAndPersistsIt() {
+        prepareSecret("raw-secret");
+        when(totpService.findMatchingTimeStep("raw-secret", "654321")).thenReturn(OptionalLong.of(101));
+        when(user.getTotpLastUsedStep()).thenReturn(100L);
+
+        assertTrue(service.verifyLoginCode(user, "654321"));
+
+        verify(user).setTotpLastUsedStep(101L);
+        verify(userService).save(user);
+    }
+
+    @Test
+    @DisplayName("HU10-CP09: un código TOTP repetido no consume los códigos de respaldo")
+    void reusedTotpDoesNotConsumeBackupCodes() {
+        List<String> backupCodes = hashed("12345678");
+        prepareSecret("raw-secret");
+        when(totpService.findMatchingTimeStep("raw-secret", "654321")).thenReturn(OptionalLong.of(100));
+        when(user.getTotpLastUsedStep()).thenReturn(100L);
+        when(user.getBackupCodeHashes()).thenReturn(backupCodes);
+
+        assertFalse(service.verifyLoginCode(user, "654321"));
+
+        assertFalse(backupCodes.isEmpty());
     }
 
     @Test
