@@ -220,7 +220,7 @@ public class OrderService {
         }
 
         pendingOrder.markAsPaid();
-        Order savedOrder = orderRepository.save(pendingOrder);
+        Order savedOrder = savePaidOrder(pendingOrder, items, orderPaymentMethod, totalPrice);
 
         for (OrderItem item : items) {
             cart.removeItem(item.productId());
@@ -242,6 +242,21 @@ public class OrderService {
         } catch (RuntimeException exception) {
             PedidoNoCompletadoException failure = new PedidoNoCompletadoException(exception);
             releaseStock(items, failure);
+            throw failure;
+        }
+    }
+
+    private Order savePaidOrder(
+            Order order,
+            List<OrderItem> items,
+            OrderPaymentMethod paymentMethod,
+            BigDecimal amount) {
+        try {
+            return orderRepository.save(order);
+        } catch (RuntimeException exception) {
+            PedidoNoCompletadoException failure = new PedidoNoCompletadoException(exception);
+            paymentGateway.refund(paymentMethod, amount);
+            discardPendingOrder(order, items, failure);
             throw failure;
         }
     }
