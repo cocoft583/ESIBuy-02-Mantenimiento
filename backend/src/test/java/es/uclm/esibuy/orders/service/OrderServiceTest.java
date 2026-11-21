@@ -12,6 +12,7 @@ import es.uclm.esibuy.cart.repository.CartRepository;
 import es.uclm.esibuy.configuration.model.GeneralConfiguration;
 import es.uclm.esibuy.configuration.service.GeneralConfigurationService;
 import es.uclm.esibuy.common.exception.PagoFallidoException;
+import es.uclm.esibuy.common.exception.PedidoNoCompletadoException;
 import es.uclm.esibuy.common.exception.PedidoNotFoundException;
 import es.uclm.esibuy.common.exception.RecursoCheckoutNoEncontradoException;
 import es.uclm.esibuy.common.exception.StockInsuficienteException;
@@ -47,6 +48,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.query.Query;
@@ -698,6 +700,32 @@ class OrderServiceTest {
                                 any(Query.class),
                                 any(Update.class),
                                 eq(Product.class));
+
+                assertEquals(2, cart.getItems().get(0).getQuantity());
+        }
+
+        @Test
+        @DisplayName("HU11: si no se puede guardar el pedido, no se cobra y se libera el stock")
+        void doesNotChargeAndReleasesStockWhenThePendingOrderCannotBeSaved() {
+                prepareCartAndProduct(productWithStock(5));
+                enableStockReservation();
+                enableStockRelease();
+
+                when(orderRepository.save(any(Order.class)))
+                                .thenThrow(new DataAccessResourceFailureException("MongoDB no responde"));
+
+                assertThrows(
+                                PedidoNoCompletadoException.class,
+                                () -> orderService.createOrder(
+                                                CUSTOMER_ID,
+                                                new CreateOrderDTO("direccion-1", "pago-1")));
+
+                verify(paymentGateway, never()).charge(any(), any());
+                verify(mongoTemplate).updateFirst(
+                                any(Query.class),
+                                any(Update.class),
+                                eq(Product.class));
+                verify(cartRepository, never()).save(cart);
 
                 assertEquals(2, cart.getItems().get(0).getQuantity());
         }
