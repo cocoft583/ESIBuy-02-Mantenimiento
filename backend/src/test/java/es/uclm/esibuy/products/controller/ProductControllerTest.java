@@ -6,6 +6,7 @@ import java.util.List;
 import es.uclm.esibuy.common.exception.ApiExceptionHandler;
 import es.uclm.esibuy.common.exception.CategoryNotFoundException;
 import es.uclm.esibuy.common.exception.ProductNotFoundException;
+import es.uclm.esibuy.common.exception.ProductoDesactivadoException;
 import es.uclm.esibuy.products.dto.CatalogPageResponse;
 import es.uclm.esibuy.products.dto.CatalogSearch;
 import es.uclm.esibuy.products.dto.ProductCreateRequest;
@@ -17,6 +18,7 @@ import es.uclm.esibuy.security.AuthenticatedUserPrincipal;
 import es.uclm.esibuy.security.config.SecurityConfig;
 import es.uclm.esibuy.users.model.UserRole;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.DisplayName;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -164,7 +166,9 @@ class ProductControllerTest {
 
         @Test
         void shouldReturnProductDetailsForEditing() throws Exception {
-                when(productService.getProductById("product-1")).thenReturn(new ProductResponse(
+                when(productService.getProductForClientOrManagement(
+                                eq("product-1"), any(AuthenticatedUserPrincipal.class)))
+                                .thenReturn(new ProductResponse(
                                 "product-1",
                                 PRODUCT_NAME,
                                 List.of(CATEGORY_ID),
@@ -184,18 +188,34 @@ class ProductControllerTest {
                                 .andExpect(jsonPath("$.categoryIds[0]").value(CATEGORY_ID))
                                 .andExpect(jsonPath("$.stock").value(3));
 
-                verify(productService).getProductById("product-1");
+                verify(productService).getProductForClientOrManagement(
+                                eq("product-1"), any(AuthenticatedUserPrincipal.class));
         }
 
         @Test
         void shouldReturnNotFoundWhenProductDoesNotExist() throws Exception {
-                when(productService.getProductById("product-1"))
+                when(productService.getProductForClientOrManagement(
+                                eq("product-1"), any(AuthenticatedUserPrincipal.class)))
                                 .thenThrow(new ProductNotFoundException());
 
                 mockMvc.perform(get(PRODUCTS_API + "/product-1")
                                 .with(authentication(authenticationForSeller())))
                                 .andExpect(status().isNotFound())
                                 .andExpect(jsonPath("$.message").value("Producto no encontrado"))
+                                .andExpect(jsonPath("$.correlationId").isNotEmpty());
+        }
+
+        @Test
+        @DisplayName("HU19-CP07: el detalle anónimo de desactivado responde 410 con código y mensaje")
+        void shouldReturnGoneForDeactivatedProduct() throws Exception {
+                when(productService.getProductForClientOrManagement(eq("product-1"), eq(null)))
+                                .thenThrow(new ProductoDesactivadoException());
+
+                mockMvc.perform(get(PRODUCTS_API + "/product-1"))
+                                .andExpect(status().isGone())
+                                .andExpect(jsonPath("$.message")
+                                                .value("Este producto ya no está disponible"))
+                                .andExpect(jsonPath("$.code").value("PRODUCT_UNAVAILABLE"))
                                 .andExpect(jsonPath("$.correlationId").isNotEmpty());
         }
 
@@ -260,7 +280,8 @@ class ProductControllerTest {
 
         @Test
         void shouldAllowSellerToAccessOwnedProduct() throws Exception {
-                when(productService.getProductById(PROD_1_ID))
+                when(productService.getProductForClientOrManagement(
+                                eq(PROD_1_ID), any(AuthenticatedUserPrincipal.class)))
                                 .thenReturn(new ProductResponse(
                                                 PROD_1_ID, PRODUCT_NAME, List.of(CATEGORY_ID), 3, "Desc",
                                                 new BigDecimal(PRODUCT_PRICE), null, null, null, true,
@@ -291,7 +312,8 @@ class ProductControllerTest {
 
         @Test
         void shouldReturnNotFoundWhenSellerAccessesMissingProduct() throws Exception {
-                when(productService.getProductById("missing"))
+                when(productService.getProductForClientOrManagement(
+                                eq("missing"), any(AuthenticatedUserPrincipal.class)))
                                 .thenThrow(new ProductNotFoundException());
 
                 mockMvc.perform(get(PRODUCTS_API + "/missing")
@@ -373,7 +395,8 @@ class ProductControllerTest {
 
         @Test
         void shouldAllowPublicAccessToProductById() throws Exception {
-                when(productService.getProductById(PROD_1_ID))
+                when(productService.getProductForClientOrManagement(
+                                eq(PROD_1_ID), eq(null)))
                                 .thenReturn(new ProductResponse(
                                                 PROD_1_ID, PRODUCT_NAME, List.of(CATEGORY_ID), 5,
                                                 "Desc", new BigDecimal(PRODUCT_PRICE), null, null, null, true,
@@ -462,7 +485,8 @@ class ProductControllerTest {
 
         @Test
         void shouldAllowAdminToReadPublicProductDetail() throws Exception {
-                when(productService.getProductById(PROD_1_ID))
+                when(productService.getProductForClientOrManagement(
+                                eq(PROD_1_ID), eq(null)))
                                 .thenReturn(new ProductResponse(
                                                 PROD_1_ID, PRODUCT_NAME, List.of(CATEGORY_ID), 5,
                                                 "Desc", new BigDecimal(PRODUCT_PRICE), null, null, null, true,
