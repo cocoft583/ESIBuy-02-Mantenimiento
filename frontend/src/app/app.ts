@@ -3,10 +3,12 @@ import { Component, effect, HostListener, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterOutlet } from '@angular/router';
 import { AuthService } from './core/services/auth.service';
 import { CartService } from './core/services/cart.service';
+import { NetworkStatus } from './core/services/network-status';
+import { OfflineBanner } from './shared/offline-banner/offline-banner';
 import { WishlistSelectModalComponent } from './shared/wishlist-select-modal/wishlist-select-modal';
 
 @Component({
-  imports: [RouterLink, RouterOutlet, WishlistSelectModalComponent],
+  imports: [OfflineBanner, RouterLink, RouterOutlet, WishlistSelectModalComponent],
   standalone: true,
   selector: 'app-root',
   styleUrl: './app.css',
@@ -20,6 +22,8 @@ export class App {
   readonly profileMenuOpen = signal(false);
 
   constructor() {
+    void inject(NetworkStatus).start();
+
     effect(() => {
       if (this.authService.currentUser()?.role === 'CLIENT') {
         this.cartService.load();
