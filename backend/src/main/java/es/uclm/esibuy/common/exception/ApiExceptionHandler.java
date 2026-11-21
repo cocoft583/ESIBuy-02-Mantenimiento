@@ -162,6 +162,16 @@ public class ApiExceptionHandler {
                                 CORRELATION_ID, correlationId(request)));
         }
 
+        @ExceptionHandler(ProductoDesactivadoException.class)
+        public ResponseEntity<Map<String, String>> handleProductoDesactivado(
+                        ProductoDesactivadoException exception,
+                        HttpServletRequest request) {
+                return ResponseEntity.status(HttpStatus.GONE).body(Map.of(
+                                MESSAGE, exception.getMessage(),
+                                "code", ProductoDesactivadoException.CODE,
+                                CORRELATION_ID, correlationId(request)));
+        }
+
         @ExceptionHandler(StockInsuficienteException.class)
         public ResponseEntity<Map<String, String>> handleInsufficientStock(StockInsuficienteException exception,
                         HttpServletRequest request) {

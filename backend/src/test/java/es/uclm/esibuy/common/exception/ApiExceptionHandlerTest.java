@@ -60,6 +60,20 @@ class ApiExceptionHandlerTest {
         assertTrue(response.getBody().get("message").length() > 0);
     }
 
+    @Test
+    @org.junit.jupiter.api.DisplayName("HU19-CP11: detalle desactivado responde 410 con código propio")
+    void productUnavailableReturnsGoneWithCode() {
+        MockHttpServletRequest request = requestWithCorrelationId("test-product-410");
+
+        ResponseEntity<Map<String, String>> response =
+                handler.handleProductoDesactivado(new ProductoDesactivadoException(), request);
+
+        assertEquals(HttpStatus.GONE, response.getStatusCode());
+        assertEquals("Este producto ya no está disponible", response.getBody().get("message"));
+        assertEquals("PRODUCT_UNAVAILABLE", response.getBody().get("code"));
+        assertEquals("test-product-410", response.getBody().get("correlationId"));
+    }
+
     private MockHttpServletRequest requestWithCorrelationId(String id) {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setAttribute(CorrelationIdFilter.ATTRIBUTE, id);
