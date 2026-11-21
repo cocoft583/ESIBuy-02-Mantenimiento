@@ -50,8 +50,10 @@ import es.uclm.esibuy.orders.model.OrderStatus;
 import es.uclm.esibuy.orders.repository.OrderRepository;
 import es.uclm.esibuy.products.model.Product;
 import es.uclm.esibuy.products.repository.ProductRepository;
+import es.uclm.esibuy.products.service.ProductPricing;
 import es.uclm.esibuy.users.dto.ShippingAddressResponse;
 import es.uclm.esibuy.users.model.ClientProfile;
+import es.uclm.esibuy.users.model.CustomerType;
 import es.uclm.esibuy.users.model.PaymentMethod;
 import es.uclm.esibuy.users.model.ReservedAccounts;
 import es.uclm.esibuy.users.model.ShippingAddress;
@@ -177,7 +179,8 @@ public class OrderService {
         List<OrderItem> items = prepareOrderItems(
                 cart,
                 request.sellerId(),
-                request.productIds());
+                request.productIds(),
+                isPremiumCustomer(customer));
 
         BigDecimal subtotal = items.stream()
                 .map(OrderItem::subtotal)
@@ -632,6 +635,12 @@ public class OrderService {
                 .orElseThrow(RecursoCheckoutNoEncontradoException::new);
     }
 
+    private boolean isPremiumCustomer(User customer) {
+        ClientProfile profile = customer.getClientProfile();
+
+        return profile != null && CustomerType.PREMIUM.equals(profile.getCustomerType());
+    }
+
     private PaymentMethod getPaymentMethod(ClientProfile profile, String paymentMethodId) {
         return profile.getPaymentMethods().stream()
                 .filter(method -> method.getId().equals(paymentMethodId))
@@ -642,7 +651,8 @@ public class OrderService {
     private List<OrderItem> prepareOrderItems(
             Cart cart,
             String sellerId,
-            List<String> productIds) {
+            List<String> productIds,
+            boolean premiumCustomer) {
 
         List<OrderItem> items = new ArrayList<>();
         Set<String> sellers = new HashSet<>();
@@ -652,7 +662,8 @@ public class OrderService {
                     item,
                     sellerId,
                     productIds,
-                    sellers);
+                    sellers,
+                    premiumCustomer);
 
             orderItem.ifPresent(items::add);
         }
@@ -675,7 +686,8 @@ public class OrderService {
             CartItem item,
             String sellerId,
             List<String> productIds,
-            Set<String> sellers) {
+            Set<String> sellers,
+            boolean premiumCustomer) {
 
         if (productIds != null
                 && !productIds.isEmpty()
@@ -706,7 +718,11 @@ public class OrderService {
 
         sellers.add(itemSellerId);
 
-        BigDecimal unitPrice = item.getUnitPrice() != null ? item.getUnitPrice() : product.getPrice();
+        // Se cobra el precio que tiene el producto al confirmar, para el tipo de cliente de ese momento.
+        // Solo si el producto no tiene precio (datos antiguos) se usa el guardado en el carrito.
+        BigDecimal unitPrice = product.getPrice() != null
+                ? ProductPricing.effectivePrice(product, premiumCustomer)
+                : item.getUnitPrice();
         BigDecimal subtotal = unitPrice.multiply(BigDecimal.valueOf(item.getQuantity()));
 
         return Optional.of(new OrderItem(
