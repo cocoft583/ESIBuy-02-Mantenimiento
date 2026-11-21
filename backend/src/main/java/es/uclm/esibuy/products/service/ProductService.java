@@ -4,8 +4,10 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -30,6 +32,8 @@ import es.uclm.esibuy.categories.model.Category;
 import es.uclm.esibuy.categories.repository.CategoryRepository;
 import es.uclm.esibuy.common.exception.CategoryNotFoundException;
 import es.uclm.esibuy.common.exception.ProductNotFoundException;
+import es.uclm.esibuy.products.dto.CatalogPageResponse;
+import es.uclm.esibuy.products.dto.CatalogSearch;
 import es.uclm.esibuy.products.dto.ProductCreateRequest;
 import es.uclm.esibuy.products.dto.ProductDetailDTO;
 import es.uclm.esibuy.products.dto.ProductResponse;
@@ -37,6 +41,8 @@ import es.uclm.esibuy.products.dto.ProductSummaryDTO;
 import es.uclm.esibuy.products.dto.ProductSummaryResponse;
 import es.uclm.esibuy.products.model.Product;
 import es.uclm.esibuy.products.model.ProductDetails;
+import es.uclm.esibuy.products.repository.ProductCatalogRepository;
+import es.uclm.esibuy.products.repository.ProductCatalogRepository.CatalogResult;
 import es.uclm.esibuy.products.repository.ProductRepository;
 import es.uclm.esibuy.users.model.User;
 import es.uclm.esibuy.users.model.UserRole;
@@ -60,16 +66,19 @@ private static final String NO_PERMISSIONS_MESSAGE = "No tiene permisos para mod
     private final CategoryRepository categoryRepository;
     private final UserRepository userRepository;
     private final GridFsTemplate gridFsTemplate;
+    private final ProductCatalogRepository productCatalogRepository;
 
     public ProductService(
             ProductRepository productRepository,
             CategoryRepository categoryRepository,
             UserRepository userRepository,
-            GridFsTemplate gridFsTemplate) {
+            GridFsTemplate gridFsTemplate,
+            ProductCatalogRepository productCatalogRepository) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
         this.userRepository = userRepository;
         this.gridFsTemplate = gridFsTemplate;
+        this.productCatalogRepository = productCatalogRepository;
     }
 
     public Product createProduct(
@@ -516,23 +525,22 @@ private static final String NO_PERMISSIONS_MESSAGE = "No tiene permisos para mod
                 .toList();
     }
 
-    public List<ProductResponse> getPublicCatalog(
-            String query,
-            String categoryId,
-            BigDecimal minPrice,
-            BigDecimal maxPrice,
-            Double minRating,
-            Boolean inStock) {
+    public CatalogPageResponse getPublicCatalog(CatalogSearch search) {
+        CatalogResult result = productCatalogRepository.search(search);
+        Map<String, String> sellerNames = resolveSellerNames(result.products());
 
-        return productRepository.findAllByAvailableTrue().stream()
-                .filter(product -> matchesQuery(product, query))
-                .filter(product -> matchesCategory(product, categoryId))
-                .filter(product -> matchesMinPrice(product, minPrice))
-                .filter(product -> matchesMaxPrice(product, maxPrice))
-                .filter(product -> matchesMinRating(product, minRating))
-                .filter(product -> matchesStock(product, inStock))
-                .map(this::toProductResponse)
+        List<ProductResponse> content = result.products().stream()
+                .map(product -> ProductResponse.from(product, sellerNames.get(product.getSellerId())))
                 .toList();
+        int totalPages = (int) Math.ceil((double) result.total() / search.size());
+
+        return new CatalogPageResponse(
+                content,
+                search.page(),
+                search.size(),
+                result.total(),
+                totalPages,
+                productCatalogRepository.findMaxAvailablePrice());
     }
 
     public List<ProductSummaryDTO> getProductsForAdmin(
@@ -601,18 +609,36 @@ private static final String NO_PERMISSIONS_MESSAGE = "No tiene permisos para mod
             return null;
         }
         return userRepository.findById(sellerId)
-                .map(user -> {
-                    if (user.getSellerProfile() != null
-                            && user.getSellerProfile().getBusinessName() != null
-                            && !user.getSellerProfile().getBusinessName().isBlank()) {
-                        return user.getSellerProfile().getBusinessName();
-                    }
-                    String firstName = user.getFirstName() != null ? user.getFirstName() : "";
-                    String lastName = user.getLastName() != null ? user.getLastName() : "";
-                    String fullName = (firstName + " " + lastName).trim();
-                    return fullName.isBlank() ? user.getEmail() : fullName;
-                })
+                .map(this::sellerDisplayName)
                 .orElse(null);
+    }
+
+    // Una sola consulta ($in) para todos los vendedores de la página
+    private Map<String, String> resolveSellerNames(List<Product> products) {
+        Set<String> sellerIds = products.stream()
+                .map(Product::getSellerId)
+                .filter(sellerId -> sellerId != null && !sellerId.isBlank())
+                .collect(Collectors.toSet());
+
+        Map<String, String> sellerNames = new HashMap<>();
+        if (sellerIds.isEmpty()) {
+            return sellerNames;
+        }
+        userRepository.findAllById(sellerIds)
+                .forEach(user -> sellerNames.put(user.getId(), sellerDisplayName(user)));
+        return sellerNames;
+    }
+
+    private String sellerDisplayName(User user) {
+        if (user.getSellerProfile() != null
+                && user.getSellerProfile().getBusinessName() != null
+                && !user.getSellerProfile().getBusinessName().isBlank()) {
+            return user.getSellerProfile().getBusinessName();
+        }
+        String firstName = user.getFirstName() != null ? user.getFirstName() : "";
+        String lastName = user.getLastName() != null ? user.getLastName() : "";
+        String fullName = (firstName + " " + lastName).trim();
+        return fullName.isBlank() ? user.getEmail() : fullName;
     }
 
     private boolean matchesStockFilter(Product product, Boolean inStock) {
@@ -625,22 +651,6 @@ private static final String NO_PERMISSIONS_MESSAGE = "No tiene permisos para mod
         return product.getStock() <= 0;
     }
 
-    private boolean matchesQuery(Product product, String query) {
-        if (query == null || query.isBlank()) {
-            return true;
-        }
-
-        String normalizedQuery = query.trim().toLowerCase();
-
-        boolean matchesName = product.getName() != null
-                && product.getName().toLowerCase().contains(normalizedQuery);
-
-        boolean matchesDescription = product.getDescription() != null
-                && product.getDescription().toLowerCase().contains(normalizedQuery);
-
-        return matchesName || matchesDescription;
-    }
-
     private boolean matchesCategory(Product product, String categoryId) {
         if (categoryId == null || categoryId.isBlank()) {
             return true;
@@ -650,40 +660,6 @@ private static final String NO_PERMISSIONS_MESSAGE = "No tiene permisos para mod
                 && product.getCategoryIds().contains(categoryId.trim());
     }
 
-    private boolean matchesMinPrice(Product product, BigDecimal minPrice) {
-        if (minPrice == null) {
-            return true;
-        }
-
-        return product.getPrice() != null
-                && product.getPrice().compareTo(minPrice) >= 0;
-    }
-
-    private boolean matchesMaxPrice(Product product, BigDecimal maxPrice) {
-        if (maxPrice == null) {
-            return true;
-        }
-
-        return product.getPrice() != null
-                && product.getPrice().compareTo(maxPrice) <= 0;
-    }
-
-    private boolean matchesMinRating(Product product, Double minRating) {
-        if (minRating == null) {
-            return true;
-        }
-
-        return product.getRating() != null
-                && product.getRating() >= minRating;
-    }
-
-    private boolean matchesStock(Product product, Boolean inStock) {
-        if (!Boolean.TRUE.equals(inStock)) {
-            return true;
-        }
-
-        return product.getStock() > 0;
-    }
 
     public ProductResponse getProductById(String id) {
         Product product = productRepository.findById(id)
