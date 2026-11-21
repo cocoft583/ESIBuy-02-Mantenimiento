@@ -363,6 +363,9 @@ export class SellerCatalog implements OnInit {
       request.premiumDiscount = product.premiumDiscount;
     }
 
+    // Sin esto, editar precio, stock o visibilidad desde el catálogo quitaría la exclusividad (HU15).
+    request.premiumOnly = product.premiumOnly ?? false;
+
     return request;
   }
 

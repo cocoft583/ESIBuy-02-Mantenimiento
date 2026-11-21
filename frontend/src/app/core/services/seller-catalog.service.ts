@@ -12,6 +12,7 @@ export interface SellerProduct {
   price: number;
   discount: number | null;
   premiumDiscount: number | null;
+  premiumOnly?: boolean;
   imageUrl: string | null;
   available: boolean;
   sellerId: string;

@@ -17,6 +17,7 @@ export interface ProductItem {
   price: number;
   discount?: number | null;
   premiumDiscount?: number | null;
+  premiumOnly?: boolean;
   imageUrl?: string | null;
   available: boolean;
   sellerId: string;
@@ -33,6 +34,7 @@ export interface ProductCreateRequest {
   price: number;
   discount?: number | null;
   premiumDiscount?: number | null;
+  premiumOnly?: boolean;
   imageUrl?: string | null;
   available: boolean;
 }
@@ -59,6 +61,7 @@ export interface ProductDetails {
   price: number;
   discount: number | null;
   premiumDiscount: number | null;
+  premiumOnly?: boolean;
   imageUrl: string | null;
   available: boolean;
   sellerId: string;
