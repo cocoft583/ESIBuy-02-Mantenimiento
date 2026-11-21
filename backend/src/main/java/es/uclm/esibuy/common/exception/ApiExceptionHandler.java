@@ -188,6 +188,17 @@ public class ApiExceptionHandler {
                                 MESSAGE, exception.getMessage(), CORRELATION_ID, correlationId(request)));
         }
 
+        @ExceptionHandler(PedidoNoCompletadoException.class)
+        public ResponseEntity<Map<String, String>> handleOrderNotCompleted(
+                        PedidoNoCompletadoException exception, HttpServletRequest request) {
+                String id = correlationId(request);
+
+                LOGGER.error("No se pudo completar el pedido. correlationId={}", id, exception.getCause());
+
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of(
+                                MESSAGE, exception.getMessage(), CORRELATION_ID, id));
+        }
+
         @ExceptionHandler(RecursoCheckoutNoEncontradoException.class)
         public ResponseEntity<Map<String, String>> handleCheckoutResourceNotFound(
                         RecursoCheckoutNoEncontradoException exception, HttpServletRequest request) {
