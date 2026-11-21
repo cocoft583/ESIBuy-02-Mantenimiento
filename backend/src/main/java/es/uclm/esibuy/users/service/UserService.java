@@ -91,7 +91,7 @@ public class UserService {
     public User registerClient(ClientRegistrationRequest request, boolean isAutoActive) {
         ensureRegistrationEnabled();
         String email = request.getEmail().trim().toLowerCase(Locale.ROOT);
-        if (userRepository.existsByEmailIgnoreCase(email)) {
+        if (ReservedAccounts.isReserved(email) || userRepository.existsByEmailIgnoreCase(email)) {
             throw new DuplicateUserException(MSG_DUPLICATE_EMAIL);
         }
 
@@ -120,7 +120,7 @@ public class UserService {
     public User registerSeller(SellerRegistrationRequest request, boolean isAutoActive) {
         ensureRegistrationEnabled();
         String email = request.getEmail().trim().toLowerCase(Locale.ROOT);
-        if (userRepository.existsByEmailIgnoreCase(email)) {
+        if (ReservedAccounts.isReserved(email) || userRepository.existsByEmailIgnoreCase(email)) {
             throw new DuplicateUserException(MSG_DUPLICATE_EMAIL);
         }
         String businessName = request.getBusinessName().trim();
@@ -156,7 +156,7 @@ public class UserService {
 
     public User createAdmin(AdminCreateRequest request) {
         String email = request.getEmail().trim().toLowerCase(Locale.ROOT);
-        if (userRepository.existsByEmailIgnoreCase(email)) {
+        if (ReservedAccounts.isReserved(email) || userRepository.existsByEmailIgnoreCase(email)) {
             throw new DuplicateUserException(MSG_DUPLICATE_EMAIL);
         }
 
