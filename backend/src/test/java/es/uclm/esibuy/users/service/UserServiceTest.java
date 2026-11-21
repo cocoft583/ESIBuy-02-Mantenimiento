@@ -24,6 +24,7 @@ import es.uclm.esibuy.security.repository.EmailOtpChallengeRepository;
 import es.uclm.esibuy.auth.passwordreset.repository.PasswordResetTokenRepository;
 import es.uclm.esibuy.security.repository.LoginAttemptRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -175,6 +176,51 @@ class UserServiceTest {
                 when(userRepository.existsByEmailIgnoreCase("ana@example.com")).thenReturn(true);
 
                 assertThrows(DuplicateUserException.class, () -> userService.registerClient(request));
+        }
+
+        @Test
+        @DisplayName("HU18-CP07: no se puede registrar un cliente con el identificador reservado")
+        void shouldRejectClientRegistrationWithTheReservedIdentifier() {
+                ClientRegistrationRequest request = new ClientRegistrationRequest();
+                request.setEmail("cliente-eliminado");
+
+                assertThrows(DuplicateUserException.class, () -> userService.registerClient(request));
+
+                verify(userRepository, never()).save(any(User.class));
+        }
+
+        @Test
+        @DisplayName("HU18-CP08: no se puede registrar un cliente con un correo del dominio reservado")
+        void shouldRejectClientRegistrationWithAnEmailOfTheReservedDomain() {
+                ClientRegistrationRequest request = new ClientRegistrationRequest();
+                request.setEmail("Cliente.Eliminado@esibuy.local");
+
+                assertThrows(DuplicateUserException.class, () -> userService.registerClient(request));
+
+                verify(userRepository, never()).save(any(User.class));
+        }
+
+        @Test
+        @DisplayName("HU18-CP09: no se puede registrar un vendedor con un correo del dominio reservado")
+        void shouldRejectSellerRegistrationWithAnEmailOfTheReservedDomain() {
+                SellerRegistrationRequest request = new SellerRegistrationRequest();
+                request.setEmail("vendedor@esibuy.local");
+                request.setBusinessName("Tienda");
+
+                assertThrows(DuplicateUserException.class, () -> userService.registerSeller(request));
+
+                verify(userRepository, never()).save(any(User.class));
+        }
+
+        @Test
+        @DisplayName("HU18-CP10: no se puede crear un administrador con un correo del dominio reservado")
+        void shouldRejectAdminCreationWithAnEmailOfTheReservedDomain() {
+                AdminCreateRequest request = new AdminCreateRequest();
+                request.setEmail("admin@esibuy.local");
+
+                assertThrows(DuplicateUserException.class, () -> userService.createAdmin(request));
+
+                verify(userRepository, never()).save(any(User.class));
         }
 
         @Test
@@ -611,7 +657,7 @@ class UserServiceTest {
                 when(userRepository.findById("client-1"))
                                 .thenReturn(Optional.of(client));
 
-                when(userRepository.findByEmailIgnoreCase("cliente.eliminado@esibuy.local"))
+                when(userRepository.findByEmailIgnoreCase("cliente-eliminado"))
                                 .thenReturn(Optional.empty());
 
                 when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
@@ -631,7 +677,7 @@ class UserServiceTest {
 
                 User deletedCustomer = userCaptor.getValue();
 
-                assertEquals("cliente.eliminado@esibuy.local", deletedCustomer.getEmail());
+                assertEquals("cliente-eliminado", deletedCustomer.getEmail());
                 assertEquals("Cliente", deletedCustomer.getFirstName());
                 assertEquals("eliminado", deletedCustomer.getLastName());
                 assertEquals(UserRole.CLIENT, deletedCustomer.getRole());
