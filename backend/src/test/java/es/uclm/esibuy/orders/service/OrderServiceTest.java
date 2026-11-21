@@ -731,6 +731,41 @@ class OrderServiceTest {
         }
 
         @Test
+        @DisplayName("HU11: si falla tras cobrar, se devuelve el cobro, se borra el pedido y se libera el stock")
+        void refundsAndReleasesStockWhenThePaidOrderCannotBeSaved() {
+                prepareCartAndProduct(productWithStock(5));
+                enableStockReservation();
+                enableStockRelease();
+
+                when(paymentGateway.charge(any(), any())).thenReturn(true);
+                when(orderRepository.save(any(Order.class)))
+                                .thenAnswer(invocation -> invocation.getArgument(0))
+                                .thenThrow(new DataAccessResourceFailureException("MongoDB no responde"));
+
+                assertThrows(
+                                PedidoNoCompletadoException.class,
+                                () -> orderService.createOrder(
+                                                CUSTOMER_ID,
+                                                new CreateOrderDTO("direccion-1", "pago-1")));
+
+                ArgumentCaptor<OrderPaymentMethod> chargedMethod = ArgumentCaptor.forClass(OrderPaymentMethod.class);
+                verify(paymentGateway).charge(chargedMethod.capture(), eq(new BigDecimal("39.98")));
+                verify(paymentGateway).refund(chargedMethod.getValue(), new BigDecimal("39.98"));
+
+                ArgumentCaptor<Order> pendingOrder = ArgumentCaptor.forClass(Order.class);
+                verify(orderRepository, times(2)).save(pendingOrder.capture());
+                verify(orderRepository).delete(pendingOrder.getValue());
+
+                verify(mongoTemplate).updateFirst(
+                                any(Query.class),
+                                any(Update.class),
+                                eq(Product.class));
+                verify(cartRepository, never()).save(cart);
+
+                assertEquals(2, cart.getItems().get(0).getQuantity());
+        }
+
+        @Test
         void shouldRejectInitiallyInsufficientStockWithoutReservingOrCharging() {
                 prepareCartAndProduct(productWithStock(1));
 

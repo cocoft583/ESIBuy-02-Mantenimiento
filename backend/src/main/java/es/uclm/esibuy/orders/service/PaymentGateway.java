@@ -7,4 +7,6 @@ import es.uclm.esibuy.orders.model.OrderPaymentMethod;
 public interface PaymentGateway {
 
     boolean charge(OrderPaymentMethod paymentMethod, BigDecimal amount);
+
+    void refund(OrderPaymentMethod paymentMethod, BigDecimal amount);
 }
