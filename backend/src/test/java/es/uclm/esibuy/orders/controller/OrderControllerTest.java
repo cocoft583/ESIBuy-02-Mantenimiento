@@ -7,6 +7,7 @@ import java.util.List;
 
 import es.uclm.esibuy.common.exception.ApiExceptionHandler;
 import es.uclm.esibuy.common.exception.PagoFallidoException;
+import es.uclm.esibuy.common.exception.PedidoNoCompletadoException;
 import es.uclm.esibuy.orders.dto.CheckoutPaymentMethodDTO;
 import es.uclm.esibuy.orders.dto.CheckoutSummaryDTO;
 import es.uclm.esibuy.orders.dto.CustomerOrderDTO;
@@ -368,6 +369,26 @@ class OrderControllerTest {
                                 .andExpect(status().isPaymentRequired())
                                 .andExpect(jsonPath("$.message").value(
                                                 "El pago fue rechazado. No se ha realizado ningún cargo ni modificado tu carrito"))
+                                .andExpect(jsonPath("$.stackTrace").doesNotExist());
+        }
+
+        @Test
+        void shouldReturnServiceUnavailableWhenTheOrderCouldNotBeCompleted() throws Exception {
+                doThrow(new PedidoNoCompletadoException(new IllegalStateException("MongoDB no responde")))
+                                .when(orderService)
+                                .createOrder(eq(CUSTOMER_ID), any());
+
+                mockMvc.perform(post(API)
+                                .with(authentication(authenticationFor(UserRole.CLIENT)))
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                                {"direccionId":"direccion-1","metodoPagoId":"pago-1"}
+                                                """))
+                                .andExpect(status().isServiceUnavailable())
+                                .andExpect(jsonPath("$.message").value(
+                                                "No se ha podido completar el pedido. No se te ha cobrado nada ni se ha modificado tu carrito. Inténtalo de nuevo más tarde."))
+                                .andExpect(jsonPath("$.correlationId").exists())
                                 .andExpect(jsonPath("$.stackTrace").doesNotExist());
         }
 }
