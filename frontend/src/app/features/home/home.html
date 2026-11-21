@@ -174,7 +174,7 @@
     <div class="catalog-results">
       <div class="results-meta">
         @if (!loading() && !error()) {
-        <span class="meta-count">{{ products().length }} productos disponibles</span>
+        <span class="meta-count">{{ totalElements() }} productos disponibles</span>
         }
       </div>
 
@@ -197,7 +197,7 @@
       </div>
       } @else {
       <div class="product-cards-grid">
-        @for (product of visibleProducts(); track product.id) {
+        @for (product of products(); track product.id) {
         <article class="showcase-card product-card" [routerLink]="['/products', product.id]">
           <div class="card-media-wrapper product-image-container">
             @if (product.imageUrl && !imageErrors()[product.id]) {
@@ -325,7 +325,7 @@
         </article>
         }
       </div>
-      @if (products().length > pageSize) {
+      @if (pageCount() > 1) {
       <nav class="orders-pagination" aria-label="Paginación del catálogo">
         <button type="button" (click)="previousPage()" [disabled]="pageIndex() === 0">Anterior</button>
         <span>Página {{ pageIndex() + 1 }} de {{ pageCount() }}</span>

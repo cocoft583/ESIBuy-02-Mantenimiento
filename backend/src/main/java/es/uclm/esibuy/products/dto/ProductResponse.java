@@ -19,7 +19,8 @@ public record ProductResponse(
         String sellerId,
         Double rating,
         String sellerName,
-        int reviewCount) {
+        int reviewCount,
+        boolean premiumOnly) {
 
     public ProductResponse {
         categoryIds = List.copyOf(categoryIds);
@@ -51,7 +52,7 @@ public record ProductResponse(
                 sellerId,
                 null,
                 null,
-                0);
+                0, false);
     }
 
     public ProductResponse(
@@ -81,7 +82,7 @@ public record ProductResponse(
                 sellerId,
                 rating,
                 null,
-                0);
+                0, false);
     }
 
     public ProductResponse(
@@ -112,7 +113,7 @@ public record ProductResponse(
                 sellerId,
                 rating,
                 sellerName,
-                0);
+                0, false);
     }
 
     public static ProductResponse from(Product product) {
@@ -134,6 +135,7 @@ public record ProductResponse(
                 product.getSellerId(),
                 product.getRating(),
                 sellerName,
-                product.getReviewCount());
+                product.getReviewCount(),
+                product.isPremiumOnly());
     }
 }

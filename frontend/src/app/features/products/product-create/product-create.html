@@ -262,6 +262,17 @@
                     }
                   </span>
                 </label>
+
+                <label class="visibility-toggle" for="exclusivoPremium">
+                  <input id="exclusivoPremium" type="checkbox" formControlName="exclusivoPremium" />
+                  <span class="visibility-copy">
+                    <strong>Exclusivo Premium</strong>
+                    <small>Solo los clientes Premium podrán comprar este producto.</small>
+                    @if (serverFieldErrors.exclusivoPremium) {
+                    <small class="field-error" role="alert">{{ serverFieldErrors.exclusivoPremium }}</small>
+                    }
+                  </span>
+                </label>
               </div>
             </section>
 

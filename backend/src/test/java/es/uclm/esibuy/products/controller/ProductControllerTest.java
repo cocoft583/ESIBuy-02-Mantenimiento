@@ -7,6 +7,8 @@ import es.uclm.esibuy.common.exception.ApiExceptionHandler;
 import es.uclm.esibuy.common.exception.CategoryNotFoundException;
 import es.uclm.esibuy.common.exception.ProductNotFoundException;
 import es.uclm.esibuy.common.exception.ProductoDesactivadoException;
+import es.uclm.esibuy.products.dto.CatalogPageResponse;
+import es.uclm.esibuy.products.dto.CatalogSearch;
 import es.uclm.esibuy.products.dto.ProductCreateRequest;
 import es.uclm.esibuy.products.dto.ProductResponse;
 import es.uclm.esibuy.products.dto.ProductSummaryResponse;
@@ -27,8 +29,12 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 
+import org.mockito.ArgumentCaptor;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
@@ -330,16 +336,61 @@ class ProductControllerTest {
 
         @Test
         void shouldAllowPublicAccessToCatalog() throws Exception {
-                when(productService.getPublicCatalog(null, null, null, null, null, null))
-                                .thenReturn(List.of(new ProductResponse(
-                                                PROD_1_ID, PRODUCT_NAME, List.of(CATEGORY_ID), 5,
-                                                "Desc", new BigDecimal(PRODUCT_PRICE), null, null, null, true,
-                                                SELLER_ID)));
+                                when(productService.getPublicCatalog(any(CatalogSearch.class))).thenReturn(catalogPage());
 
                 mockMvc.perform(get(PRODUCTS_API))
                                 .andExpect(status().isOk())
-                                .andExpect(jsonPath("$[0].id").value(PROD_1_ID))
-                                .andExpect(jsonPath("$[0].name").value(PRODUCT_NAME));
+                                .andExpect(jsonPath("$.content[0].id").value(PROD_1_ID))
+                                .andExpect(jsonPath("$.content[0].name").value(PRODUCT_NAME))
+                                .andExpect(jsonPath("$.totalElements").value(1))
+                                .andExpect(jsonPath("$.totalPages").value(1));
+        }
+
+        @Test
+        void passesPageSortAndFiltersToTheCatalog() throws Exception {
+                when(productService.getPublicCatalog(any(CatalogSearch.class))).thenReturn(catalogPage());
+
+                mockMvc.perform(get(PRODUCTS_API)
+                                .param("query", "auriculares")
+                                .param("minPrice", "10")
+                                .param("onlyOffers", "true")
+                                .param("sort", "price-asc")
+                                .param("page", "2")
+                                .param("size", "24"))
+                                .andExpect(status().isOk());
+
+                ArgumentCaptor<CatalogSearch> captor = ArgumentCaptor.forClass(CatalogSearch.class);
+                verify(productService).getPublicCatalog(captor.capture());
+                CatalogSearch search = captor.getValue();
+                assertEquals("auriculares", search.query());
+                assertEquals(0, new BigDecimal("10").compareTo(search.minPrice()));
+                assertEquals(Boolean.TRUE, search.onlyOffers());
+                assertEquals("price-asc", search.sort());
+                assertEquals(2, search.page());
+                assertEquals(24, search.size());
+        }
+
+        @Test
+        void usesTheFirstPageOfTwelveByDefaultAndCapsThePageSize() throws Exception {
+                when(productService.getPublicCatalog(any(CatalogSearch.class))).thenReturn(catalogPage());
+
+                mockMvc.perform(get(PRODUCTS_API)).andExpect(status().isOk());
+                mockMvc.perform(get(PRODUCTS_API).param("page", "-3").param("size", "500"))
+                                .andExpect(status().isOk());
+
+                ArgumentCaptor<CatalogSearch> captor = ArgumentCaptor.forClass(CatalogSearch.class);
+                verify(productService, times(2)).getPublicCatalog(captor.capture());
+                assertEquals(0, captor.getAllValues().get(0).page());
+                assertEquals(CatalogSearch.DEFAULT_SIZE, captor.getAllValues().get(0).size());
+                assertEquals(0, captor.getAllValues().get(1).page());
+                assertEquals(CatalogSearch.MAX_SIZE, captor.getAllValues().get(1).size());
+        }
+
+        private CatalogPageResponse catalogPage() {
+                return new CatalogPageResponse(List.of(new ProductResponse(
+                                PROD_1_ID, PRODUCT_NAME, List.of(CATEGORY_ID), 5,
+                                "Desc", new BigDecimal(PRODUCT_PRICE), null, null, null, true,
+                                SELLER_ID)), 0, 12, 1, 1, new BigDecimal(PRODUCT_PRICE));
         }
 
         @Test
@@ -424,16 +475,12 @@ class ProductControllerTest {
 
         @Test
         void shouldAllowAdminToReadPublicCatalog() throws Exception {
-                when(productService.getPublicCatalog(null, null, null, null, null, null))
-                                .thenReturn(List.of(new ProductResponse(
-                                                PROD_1_ID, PRODUCT_NAME, List.of(CATEGORY_ID), 5,
-                                                "Desc", new BigDecimal(PRODUCT_PRICE), null, null, null, true,
-                                                SELLER_ID)));
+                                when(productService.getPublicCatalog(any(CatalogSearch.class))).thenReturn(catalogPage());
 
                 mockMvc.perform(get(PRODUCTS_API)
                                 .with(user(ADMIN_EMAIL).roles("ADMIN")))
                                 .andExpect(status().isOk())
-                                .andExpect(jsonPath("$[0].id").value(PROD_1_ID));
+                                .andExpect(jsonPath("$.content[0].id").value(PROD_1_ID));
         }
 
         @Test
@@ -449,6 +496,58 @@ class ProductControllerTest {
                                 .with(user(ADMIN_EMAIL).roles("ADMIN")))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.id").value(PROD_1_ID));
+        }
+
+        // HU15: el campo premiumOnly llega al servicio y vuelve en la respuesta.
+
+        private Product productWithPremiumOnly(boolean premiumOnly) {
+                Product product = new Product(new ProductDetails(
+                                PRODUCT_NAME, List.of(CATEGORY_ID), 0, null,
+                                new BigDecimal(PRODUCT_PRICE), null, null, null, true, SELLER_ID));
+                product.setPremiumOnly(premiumOnly);
+                return product;
+        }
+
+        private String requestWithPremiumOnly(boolean premiumOnly) {
+                return """
+                                {"name":"%s","categoryIds":["%s"],"price":19.99,"available":true,"premiumOnly":%s}
+                                """.formatted(PRODUCT_NAME, CATEGORY_ID, premiumOnly);
+        }
+
+        @Test
+        void shouldCreatePremiumOnlyProduct() throws Exception {
+                ArgumentCaptor<ProductCreateRequest> captor = ArgumentCaptor.forClass(ProductCreateRequest.class);
+                when(productService.createProduct(any(ProductCreateRequest.class), eq(SELLER_EMAIL)))
+                                .thenReturn(productWithPremiumOnly(true));
+
+                mockMvc.perform(post(PRODUCTS_API)
+                                .with(authentication(authenticationForSeller()))
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(requestWithPremiumOnly(true)))
+                                .andExpect(status().isCreated())
+                                .andExpect(jsonPath("$.premiumOnly").value(true));
+
+                verify(productService).createProduct(captor.capture(), eq(SELLER_EMAIL));
+                assertEquals(Boolean.TRUE, captor.getValue().getPremiumOnly());
+        }
+
+        @Test
+        void shouldRemovePremiumOnlyWhenUpdatingProduct() throws Exception {
+                ArgumentCaptor<ProductCreateRequest> captor = ArgumentCaptor.forClass(ProductCreateRequest.class);
+                when(productService.updateProduct(eq("product-1"), any(ProductCreateRequest.class), eq(SELLER_EMAIL)))
+                                .thenReturn(productWithPremiumOnly(false));
+
+                mockMvc.perform(put(PRODUCTS_API + "/product-1")
+                                .with(authentication(authenticationForSeller()))
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(requestWithPremiumOnly(false)))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.premiumOnly").value(false));
+
+                verify(productService).updateProduct(eq("product-1"), captor.capture(), eq(SELLER_EMAIL));
+                assertEquals(Boolean.FALSE, captor.getValue().getPremiumOnly());
         }
 
         private String validRequest() {

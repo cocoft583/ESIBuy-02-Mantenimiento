@@ -3,6 +3,8 @@ package es.uclm.esibuy.products.controller;
 import java.math.BigDecimal;
 import java.util.List;
 
+import es.uclm.esibuy.products.dto.CatalogPageResponse;
+import es.uclm.esibuy.products.dto.CatalogSearch;
 import es.uclm.esibuy.products.dto.ProductCreateRequest;
 import es.uclm.esibuy.products.dto.ProductResponse;
 import es.uclm.esibuy.products.dto.ProductSummaryResponse;
@@ -80,14 +82,19 @@ public class ProductController {
     }
 
     @GetMapping
-    public List<ProductResponse> getPublicCatalog(
+    public CatalogPageResponse getPublicCatalog(
             @RequestParam(required = false) String query,
             @RequestParam(required = false) String categoryId,
             @RequestParam(required = false) BigDecimal minPrice,
             @RequestParam(required = false) BigDecimal maxPrice,
             @RequestParam(required = false) Double minRating,
-            @RequestParam(required = false) Boolean inStock) {
-        return productService.getPublicCatalog(query, categoryId, minPrice, maxPrice, minRating, inStock);
+            @RequestParam(required = false) Boolean inStock,
+            @RequestParam(required = false) Boolean onlyOffers,
+            @RequestParam(required = false) String sort,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "12") int size) {
+        return productService.getPublicCatalog(new CatalogSearch(
+                query, categoryId, minPrice, maxPrice, minRating, inStock, onlyOffers, sort, page, size));
     }
 
     @GetMapping("/mine")

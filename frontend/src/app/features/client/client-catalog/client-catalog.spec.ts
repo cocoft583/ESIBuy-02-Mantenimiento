@@ -4,11 +4,15 @@ import { provideRouter } from '@angular/router';
 import { NEVER, of, throwError } from 'rxjs';
 import { afterEach, describe, beforeEach, it, expect, vi } from 'vitest';
 import { ClientCatalog } from './client-catalog';
-import { ProductsService, ProductItem, Category } from '../../../core/services/products.service';
+import { ProductsService, ProductItem, Category, CatalogPage } from '../../../core/services/products.service';
 import { WishlistService } from '../../../core/services/wishlist.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { CartService } from '../../../core/services/cart.service';
 import { AuthService, AuthenticatedUser } from '../../../core/services/auth.service';
+
+function catalogPage(content: ProductItem[], page = 0, totalPages = 1, totalElements = content.length): CatalogPage {
+  return { content, page, size: 12, totalElements, totalPages, maxPrice: 100 };
+}
 
 describe('ClientCatalog', () => {
   let component: ClientCatalog;
@@ -56,7 +60,7 @@ describe('ClientCatalog', () => {
     localStorage.clear();
     productsServiceMock = {
       getCategories: vi.fn(() => of(mockCategories)),
-      getPublicCatalog: vi.fn(() => of(mockProducts)),
+      getPublicCatalog: vi.fn(() => of(catalogPage(mockProducts))),
     };
 
     wishlistServiceMock = {
@@ -129,29 +133,58 @@ describe('ClientCatalog', () => {
     expect(component.sidebarCollapsed()).toBe(false);
   });
 
-  it('keeps unrated products after rated products when sorting by rating', async () => {
-    productsServiceMock.getPublicCatalog.mockReturnValue(of([
-      ...mockProducts,
-      {
-        id: 'p-3',
-        name: 'Producto nuevo',
-        categoryIds: ['cat-1'],
-        stock: 3,
-        price: 12,
-        available: true,
-        sellerId: 's-3',
-        rating: null,
-        reviewCount: 0,
-      },
-    ]));
+  it('asks the server for the first page of twelve products', () => {
+    expect(productsServiceMock.getPublicCatalog).toHaveBeenCalledWith(
+      expect.objectContaining({ page: 0, size: 12 })
+    );
+  });
+
+  it('asks the server for the next and previous page', () => {
+    productsServiceMock.getPublicCatalog.mockReturnValue(of(catalogPage(mockProducts, 0, 3)));
     component.loadProducts();
-    await fixture.whenStable();
+
+    component.nextPage();
+    expect(productsServiceMock.getPublicCatalog).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 1 })
+    );
+
+    component.previousPage();
+    expect(productsServiceMock.getPublicCatalog).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 0 })
+    );
+  });
+
+  it('does not ask for a page after the last one', () => {
+    productsServiceMock.getPublicCatalog.mockReturnValue(of(catalogPage(mockProducts, 0, 1)));
+    component.loadProducts();
+    const calls = productsServiceMock.getPublicCatalog.mock.calls.length;
+
+    component.nextPage();
+
+    expect(productsServiceMock.getPublicCatalog).toHaveBeenCalledTimes(calls);
+  });
+
+  it('sends the sort and the offers filter to the server and goes back to the first page', () => {
+    productsServiceMock.getPublicCatalog.mockReturnValue(of(catalogPage(mockProducts, 0, 3)));
+    component.loadProducts();
+    component.nextPage();
 
     component.sortOrder.set('rating-desc');
-    expect(component.products().map((product) => product.id)).toEqual(['p-1', 'p-2', 'p-3']);
+    component.onlyOffers.set(true);
+    component.onFilterChange();
 
-    component.sortOrder.set('rating-asc');
-    expect(component.products().map((product) => product.id)).toEqual(['p-2', 'p-1', 'p-3']);
+    expect(productsServiceMock.getPublicCatalog).toHaveBeenLastCalledWith(
+      expect.objectContaining({ sort: 'rating-desc', onlyOffers: true, page: 0 })
+    );
+  });
+
+  it('shows the total of products of every page', () => {
+    productsServiceMock.getPublicCatalog.mockReturnValue(of(catalogPage(mockProducts, 0, 3, 30)));
+    component.loadProducts();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('30 productos disponibles');
+    expect(fixture.nativeElement.textContent).toContain('Página 1 de 3');
   });
 
   it('should add product to cart and show toast', () => {

@@ -1,6 +1,7 @@
 package es.uclm.esibuy.cart.service;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 
 import es.uclm.esibuy.cart.dto.AddCartItemDTO;
@@ -12,6 +13,7 @@ import es.uclm.esibuy.common.exception.ProductNotFoundException;
 import es.uclm.esibuy.common.exception.ProductoNoDisponibleException;
 import es.uclm.esibuy.common.exception.StockInsuficienteException;
 import es.uclm.esibuy.products.model.Product;
+import es.uclm.esibuy.products.model.ProductDetails;
 import es.uclm.esibuy.products.repository.ProductRepository;
 import es.uclm.esibuy.users.model.ClientProfile;
 import es.uclm.esibuy.users.model.CustomerType;
@@ -413,6 +415,150 @@ class CartServiceTest {
                 CartDTO result = cartService.getCart(CUSTOMER_ID);
 
                 assertNull(result.items().get(0).availableStock());
+        }
+
+        private Product currentProduct(String price, String discount, String premiumDiscount) {
+                return new Product(new ProductDetails(
+                                PRODUCT_NAME,
+                                List.of("categoria-1"),
+                                10,
+                                "Audio",
+                                price != null ? new BigDecimal(price) : null,
+                                discount != null ? new BigDecimal(discount) : null,
+                                premiumDiscount != null ? new BigDecimal(premiumDiscount) : null,
+                                null,
+                                true,
+                                "vendedor-1"));
+        }
+
+        private Cart cartWithStoredPrice(String storedPrice, int quantity) {
+                Cart existingCart = new Cart(CUSTOMER_ID);
+                existingCart.addOrIncrementItem(PRODUCT_ID, PRODUCT_NAME, new BigDecimal(storedPrice), quantity);
+                return existingCart;
+        }
+
+        @Test
+        @DisplayName("HU12-CP09: si el precio del producto sube, el carrito muestra el precio nuevo")
+        void shouldShowTheNewPriceWhenTheProductGetsMoreExpensive() {
+                when(cartRepository.findByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(cartWithStoredPrice("19.99", 2)));
+                when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(currentProduct("25.00", null, null)));
+
+                CartDTO result = cartService.getCart(CUSTOMER_ID);
+
+                assertEquals(new BigDecimal("25.00"), result.items().get(0).unitPrice());
+                assertEquals(new BigDecimal("50.00"), result.items().get(0).subtotal());
+                assertEquals(new BigDecimal("50.00"), result.totalPrice());
+        }
+
+        @Test
+        @DisplayName("HU12-CP10: si el precio del producto baja, el carrito muestra el precio nuevo")
+        void shouldShowTheNewPriceWhenTheProductGetsCheaper() {
+                when(cartRepository.findByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(cartWithStoredPrice("19.99", 2)));
+                when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(currentProduct("10.00", null, null)));
+
+                CartDTO result = cartService.getCart(CUSTOMER_ID);
+
+                assertEquals(new BigDecimal("10.00"), result.items().get(0).unitPrice());
+                assertEquals(new BigDecimal("20.00"), result.totalPrice());
+                assertEquals(BigDecimal.ZERO, result.totalDiscount());
+        }
+
+        @Test
+        @DisplayName("HU12-CP11: si el vendedor cambia el descuento, el carrito aplica el descuento actual")
+        void shouldApplyTheCurrentDiscountWhenTheSellerChangesIt() {
+                // Guardado con un 10 % de descuento (90,00); ahora el descuento es del 20 %
+                when(cartRepository.findByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(cartWithStoredPrice("90.00", 1)));
+                when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(currentProduct("100.00", "20", null)));
+
+                CartDTO result = cartService.getCart(CUSTOMER_ID);
+
+                assertEquals(new BigDecimal("80.00"), result.items().get(0).unitPrice());
+                assertEquals(new BigDecimal("20"), result.items().get(0).discount());
+                assertEquals(new BigDecimal("80.00"), result.totalPrice());
+                assertEquals(new BigDecimal("100.00"), result.totalBeforeDiscount());
+                assertEquals(new BigDecimal("20.00"), result.totalDiscount());
+        }
+
+        @Test
+        @DisplayName("HU12-CP12: si el cliente pasa a premium, el carrito aplica el descuento premium")
+        void shouldApplyThePremiumDiscountWhenTheCustomerBecomesPremium() {
+                // Guardado cuando era estándar (100,00)
+                mockCustomerType(CUSTOMER_ID, CustomerType.PREMIUM);
+                when(cartRepository.findByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(cartWithStoredPrice("100.00", 1)));
+                when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(currentProduct("100.00", "10", "5")));
+
+                CartDTO result = cartService.getCart(CUSTOMER_ID);
+
+                assertEquals(new BigDecimal("85.00"), result.items().get(0).unitPrice());
+                assertTrue(result.items().get(0).isPremiumDiscount());
+                assertEquals(new BigDecimal("85.00"), result.totalPrice());
+        }
+
+        @Test
+        @DisplayName("HU12-CP13: si el cliente deja de ser premium, el carrito vuelve al precio estándar")
+        void shouldDropThePremiumDiscountWhenTheCustomerIsNoLongerPremium() {
+                // Guardado cuando era premium (85,00)
+                mockCustomerType(CUSTOMER_ID, CustomerType.STANDARD);
+                when(cartRepository.findByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(cartWithStoredPrice("85.00", 1)));
+                when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(currentProduct("100.00", "10", "5")));
+
+                CartDTO result = cartService.getCart(CUSTOMER_ID);
+
+                assertEquals(new BigDecimal("90.00"), result.items().get(0).unitPrice());
+                assertFalse(result.items().get(0).isPremiumDiscount());
+                assertEquals(new BigDecimal("90.00"), result.totalPrice());
+        }
+
+        @Test
+        @DisplayName("HU12-CP14: el total del carrito suma el precio actual de cada línea")
+        void shouldAddUpTheCurrentPriceOfEveryLineInTheCartTotal() {
+                Cart existingCart = cartWithStoredPrice("10.00", 1);
+                existingCart.addOrIncrementItem("producto-2", "Cargador", new BigDecimal("20.00"), 2);
+
+                when(cartRepository.findByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(existingCart));
+                when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(currentProduct("12.00", null, null)));
+                when(productRepository.findById("producto-2")).thenReturn(Optional.of(currentProduct("15.00", null, null)));
+
+                CartDTO result = cartService.getCart(CUSTOMER_ID);
+
+                assertEquals(new BigDecimal("12.00"), result.items().get(0).subtotal());
+                assertEquals(new BigDecimal("30.00"), result.items().get(1).subtotal());
+                assertEquals(new BigDecimal("42.00"), result.totalPrice());
+        }
+
+        @Test
+        @DisplayName("HU12-CP15: consultar el carrito no reescribe el precio guardado")
+        void shouldNotRewriteTheStoredCartWhenReadingIt() {
+                when(cartRepository.findByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(cartWithStoredPrice("19.99", 1)));
+                when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(currentProduct("25.00", null, null)));
+
+                cartService.getCart(CUSTOMER_ID);
+
+                verify(cartRepository, never()).save(any(Cart.class));
+        }
+
+        @Test
+        @DisplayName("HU12-CP16: si el producto ya no existe, la línea conserva el precio guardado")
+        void shouldKeepTheStoredPriceWhenTheProductNoLongerExists() {
+                when(cartRepository.findByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(cartWithStoredPrice("19.99", 2)));
+                when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.empty());
+
+                CartDTO result = cartService.getCart(CUSTOMER_ID);
+
+                assertEquals(new BigDecimal("19.99"), result.items().get(0).unitPrice());
+                assertEquals(new BigDecimal("39.98"), result.totalPrice());
+        }
+
+        @Test
+        @DisplayName("HU12-CP17: si el producto no tiene precio, la línea conserva el precio guardado")
+        void shouldKeepTheStoredPriceWhenTheProductHasNoPrice() {
+                when(cartRepository.findByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(cartWithStoredPrice("19.99", 2)));
+                when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(currentProduct(null, null, null)));
+
+                CartDTO result = cartService.getCart(CUSTOMER_ID);
+
+                assertEquals(new BigDecimal("19.99"), result.items().get(0).unitPrice());
+                assertEquals(new BigDecimal("39.98"), result.totalPrice());
         }
 
         @Test

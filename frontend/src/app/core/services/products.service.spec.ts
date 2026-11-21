@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { ProductsService } from '../../core/services/products.service';
+import { CatalogPage, ProductsService } from '../../core/services/products.service';
 
 describe('ProductsService', () => {
   let service: ProductsService;
@@ -104,5 +104,44 @@ describe('ProductsService', () => {
     expect(request.request.method).toBe('PUT');
     expect(request.request.body).toEqual(payload);
     request.flush({ id: 'product-1' });
+  });
+
+  it('asks the catalog for one page with its filters and sort', () => {
+    let page: CatalogPage | undefined;
+
+    service.getPublicCatalog({
+      query: 'auriculares',
+      onlyOffers: true,
+      sort: 'price-asc',
+      page: 2,
+      size: 12,
+    }).subscribe((result) => (page = result));
+
+    const request = httpTesting.expectOne((req) => req.url === '/api/products');
+    expect(request.request.params.get('query')).toBe('auriculares');
+    expect(request.request.params.get('onlyOffers')).toBe('true');
+    expect(request.request.params.get('sort')).toBe('price-asc');
+    expect(request.request.params.get('page')).toBe('2');
+    expect(request.request.params.get('size')).toBe('12');
+    request.flush({
+      content: [{ id: 'p-1', name: 'Auriculares', imageUrl: null }],
+      page: 2,
+      size: 12,
+      totalElements: 30,
+      totalPages: 3,
+      maxPrice: 200,
+    });
+
+    expect(page?.content.map((product) => product.id)).toEqual(['p-1']);
+    expect(page?.totalPages).toBe(3);
+  });
+
+  it('does not send the recommended sort or a disabled offers filter', () => {
+    service.getPublicCatalog({ sort: 'recommended', onlyOffers: false, page: 0, size: 12 }).subscribe();
+
+    const request = httpTesting.expectOne((req) => req.url === '/api/products');
+    expect(request.request.params.has('sort')).toBe(false);
+    expect(request.request.params.has('onlyOffers')).toBe(false);
+    request.flush({ content: [], page: 0, size: 12, totalElements: 0, totalPages: 0, maxPrice: 0 });
   });
 });

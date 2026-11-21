@@ -38,6 +38,8 @@ public class ProductCreateRequest {
     @DecimalMax(value = "100.0", message = "El descuento premium no puede superar el 100")
     private BigDecimal premiumDiscount;
 
+    private Boolean premiumOnly;
+
     @NotNull(message = "Debe indicar si el producto está disponible")
     private Boolean available;
 
@@ -95,6 +97,14 @@ public class ProductCreateRequest {
 
     public void setPremiumDiscount(BigDecimal premiumDiscount) {
         this.premiumDiscount = premiumDiscount;
+    }
+
+    public Boolean getPremiumOnly() {
+        return premiumOnly;
+    }
+
+    public void setPremiumOnly(Boolean premiumOnly) {
+        this.premiumOnly = premiumOnly;
     }
 
     public Boolean getAvailable() {

@@ -40,6 +40,9 @@
     <properties>
         <java.version>21</java.version>
 
+        <!-- 1.21.4 o superior: las anteriores no reconocen Docker Engine 29 -->
+        <testcontainers.version>1.21.4</testcontainers.version>
+
         <sonar.projectKey>2026-g06-backend</sonar.projectKey>
         <sonar.projectName>2026-g06-backend</sonar.projectName>
 
@@ -97,6 +100,24 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>mongodb</artifactId>
             <scope>test</scope>
         </dependency>
 

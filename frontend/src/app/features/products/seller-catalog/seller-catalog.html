@@ -163,6 +163,9 @@
 
                       <div class="product-copy">
                         <span class="product-name">{{ product.name }}</span>
+                        @if (product.premiumOnly) {
+                        <span class="premium-only-badge">Exclusivo Premium</span>
+                        }
                         <span class="product-description">
                           {{ product.description || 'Sin descripción' }}
                         </span>
