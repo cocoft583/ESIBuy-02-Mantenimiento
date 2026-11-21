@@ -165,7 +165,9 @@ public class ApiExceptionHandler {
         @ExceptionHandler(StockInsuficienteException.class)
         public ResponseEntity<Map<String, String>> handleInsufficientStock(StockInsuficienteException exception,
                         HttpServletRequest request) {
-                return ResponseEntity.badRequest().body(Map.of(MESSAGE, exception.getMessage(),
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                                MESSAGE, exception.getMessage(),
+                                "code", StockInsuficienteException.CODE,
                                 CORRELATION_ID, correlationId(request)));
         }
 
