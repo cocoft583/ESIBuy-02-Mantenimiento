@@ -15,6 +15,7 @@ import es.uclm.esibuy.common.exception.PedidoNotFoundException;
 import es.uclm.esibuy.common.exception.RecursoCheckoutNoEncontradoException;
 import es.uclm.esibuy.common.exception.StockInsuficienteException;
 import es.uclm.esibuy.orders.dto.CreateOrderDTO;
+import es.uclm.esibuy.orders.dto.CustomerOrderDTO;
 import es.uclm.esibuy.orders.dto.OrderConfirmationDTO;
 import es.uclm.esibuy.orders.dto.OrderStatusHistoryDTO;
 import es.uclm.esibuy.orders.dto.SellerOrderDTO;
@@ -37,6 +38,7 @@ import es.uclm.esibuy.users.model.UserRole;
 import es.uclm.esibuy.users.repository.UserRepository;
 import es.uclm.esibuy.products.model.ProductDetails;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -51,11 +53,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -143,6 +147,19 @@ class OrderServiceTest {
 
                 cart = new Cart(CUSTOMER_ID);
                 cart.addOrIncrementItem(PRODUCT_ID, "Auriculares", PRICE, 2);
+        }
+
+        @Test
+        @DisplayName("HU18-CP12: un cliente solo lista los pedidos asignados a su propio identificador")
+        void shouldListOnlyTheOrdersOfTheRequestingCustomer() {
+                when(orderRepository.findAllByCustomerIdOrderByCreatedAtDesc(CUSTOMER_ID))
+                                .thenReturn(List.of());
+
+                List<CustomerOrderDTO> result = orderService.getCustomerOrders(CUSTOMER_ID);
+
+                assertTrue(result.isEmpty());
+                verify(orderRepository).findAllByCustomerIdOrderByCreatedAtDesc(CUSTOMER_ID);
+                verifyNoMoreInteractions(orderRepository);
         }
 
         @Test

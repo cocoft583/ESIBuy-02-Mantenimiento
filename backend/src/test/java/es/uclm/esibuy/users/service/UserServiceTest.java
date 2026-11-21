@@ -703,6 +703,39 @@ class UserServiceTest {
         }
 
         @Test
+        @DisplayName("HU18-CP13: al eliminar un cliente todos sus pedidos pasan al usuario técnico y se anonimizan")
+        void shouldReassignAndAnonymizeEveryOrderOfTheDeletedClient() {
+                User client = new User(
+                                "ana@example.com",
+                                "Ana",
+                                "García",
+                                UserRole.CLIENT);
+                ReflectionTestUtils.setField(client, "id", "client-1");
+
+                User technicalCustomer = org.mockito.Mockito.mock(User.class);
+                when(technicalCustomer.getId()).thenReturn("technical-customer");
+
+                Order firstOrder = org.mockito.Mockito.mock(Order.class);
+                Order secondOrder = org.mockito.Mockito.mock(Order.class);
+
+                when(userRepository.findById("client-1")).thenReturn(Optional.of(client));
+                when(userRepository.findByEmailIgnoreCase(org.mockito.ArgumentMatchers.anyString()))
+                                .thenReturn(Optional.of(technicalCustomer));
+                when(orderRepository.findAllByCustomerIdOrderByCreatedAtDesc("client-1"))
+                                .thenReturn(List.of(firstOrder, secondOrder));
+
+                userService.deleteOwnAccount("client-1");
+
+                verify(firstOrder).setCustomerId("technical-customer");
+                verify(firstOrder).anonymizeCustomerData();
+                verify(orderRepository).save(firstOrder);
+                verify(secondOrder).setCustomerId("technical-customer");
+                verify(secondOrder).anonymizeCustomerData();
+                verify(orderRepository).save(secondOrder);
+                verify(userRepository).delete(client);
+        }
+
+        @Test
         void shouldRejectAdminAccountDeletion() {
                 User admin = new User(
                                 "admin@example.com",
