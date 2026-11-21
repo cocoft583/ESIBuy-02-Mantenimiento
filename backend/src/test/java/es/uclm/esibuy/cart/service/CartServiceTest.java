@@ -538,6 +538,30 @@ class CartServiceTest {
         }
 
         @Test
+        @DisplayName("HU12-CP16: si el producto ya no existe, la línea conserva el precio guardado")
+        void shouldKeepTheStoredPriceWhenTheProductNoLongerExists() {
+                when(cartRepository.findByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(cartWithStoredPrice("19.99", 2)));
+                when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.empty());
+
+                CartDTO result = cartService.getCart(CUSTOMER_ID);
+
+                assertEquals(new BigDecimal("19.99"), result.items().get(0).unitPrice());
+                assertEquals(new BigDecimal("39.98"), result.totalPrice());
+        }
+
+        @Test
+        @DisplayName("HU12-CP17: si el producto no tiene precio, la línea conserva el precio guardado")
+        void shouldKeepTheStoredPriceWhenTheProductHasNoPrice() {
+                when(cartRepository.findByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(cartWithStoredPrice("19.99", 2)));
+                when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(currentProduct(null, null, null)));
+
+                CartDTO result = cartService.getCart(CUSTOMER_ID);
+
+                assertEquals(new BigDecimal("19.99"), result.items().get(0).unitPrice());
+                assertEquals(new BigDecimal("39.98"), result.totalPrice());
+        }
+
+        @Test
         void shouldApplyOnlyStandardDiscountForStandardCustomer() {
                 Product product = productWithDiscounts(new BigDecimal("100.00"), new BigDecimal("10"), new BigDecimal("5"));
                 mockCustomerType(CUSTOMER_ID, CustomerType.STANDARD);
