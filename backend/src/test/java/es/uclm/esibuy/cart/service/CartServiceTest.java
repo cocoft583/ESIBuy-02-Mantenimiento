@@ -18,6 +18,7 @@ import es.uclm.esibuy.users.model.CustomerType;
 import es.uclm.esibuy.users.model.User;
 import es.uclm.esibuy.users.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -28,7 +29,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -194,6 +197,66 @@ class CartServiceTest {
                                                 CUSTOMER_ID,
                                                 PRODUCT_ID,
                                                 new UpdateCartItemQuantityDTO(5)));
+        }
+
+        @Test
+        @DisplayName("HU13-CP04: se puede subir la cantidad justo hasta el stock disponible")
+        void shouldAllowIncreasingTheQuantityUpToTheAvailableStock() {
+                Cart existingCart = new Cart(CUSTOMER_ID);
+                existingCart.addOrIncrementItem(PRODUCT_ID, PRODUCT_NAME, PRICE, 2);
+
+                Product product = productWithStock(5);
+
+                when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
+                when(cartRepository.findByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(existingCart));
+                when(cartRepository.save(any(Cart.class)))
+                                .thenAnswer(invocation -> invocation.getArgument(0));
+
+                CartDTO result = cartService.updateItemQuantity(
+                                CUSTOMER_ID,
+                                PRODUCT_ID,
+                                new UpdateCartItemQuantityDTO(5));
+
+                assertEquals(5, result.items().get(0).quantity());
+        }
+
+        @Test
+        @DisplayName("HU13-CP05: la primera vez que se añade un producto no se puede superar su stock")
+        void shouldRejectAddingMoreUnitsThanTheStockToAnEmptyCart() {
+                Product product = productWithStock(3);
+
+                when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
+                when(cartRepository.findByCustomerId(CUSTOMER_ID)).thenReturn(Optional.empty());
+
+                AddCartItemDTO request = new AddCartItemDTO(PRODUCT_ID, 4);
+
+                assertThrows(
+                                StockInsuficienteException.class,
+                                () -> cartService.addItem(CUSTOMER_ID, request));
+
+                verify(cartRepository, never()).save(any(Cart.class));
+        }
+
+        @Test
+        @DisplayName("HU13-CP06: bajar la cantidad no se comprueba contra el stock aunque este haya bajado")
+        void shouldAllowReducingTheQuantityWithoutCheckingTheStock() {
+                Cart existingCart = new Cart(CUSTOMER_ID);
+                existingCart.addOrIncrementItem(PRODUCT_ID, PRODUCT_NAME, PRICE, 3);
+
+                Product product = mock(Product.class);
+                lenient().when(product.getStock()).thenReturn(1);
+
+                when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
+                when(cartRepository.findByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(existingCart));
+                when(cartRepository.save(any(Cart.class)))
+                                .thenAnswer(invocation -> invocation.getArgument(0));
+
+                CartDTO result = cartService.updateItemQuantity(
+                                CUSTOMER_ID,
+                                PRODUCT_ID,
+                                new UpdateCartItemQuantityDTO(2));
+
+                assertEquals(2, result.items().get(0).quantity());
         }
 
         @Test
