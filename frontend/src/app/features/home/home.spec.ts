@@ -44,7 +44,9 @@ describe('Home', () => {
 
     productsServiceMock = {
       getCategories: vi.fn(() => of(mockCategories)),
-      getPublicCatalog: vi.fn(() => of(mockProducts)),
+      getPublicCatalog: vi.fn(() => of({
+        content: mockProducts, page: 0, size: 12, totalElements: mockProducts.length, totalPages: 1, maxPrice: 100,
+      })),
     };
 
     wishlistServiceMock = {
