@@ -1,15 +1,23 @@
 package es.uclm.esibuy.statistics.service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.springframework.stereotype.Service;
 
+import es.uclm.esibuy.configuration.service.GeneralConfigurationService;
 import es.uclm.esibuy.products.model.Product;
 import es.uclm.esibuy.products.repository.ProductRepository;
+import es.uclm.esibuy.statistics.dto.ProductRatingDTO;
 import es.uclm.esibuy.statistics.dto.ProductSalesDTO;
+import es.uclm.esibuy.statistics.dto.RatingStatisticsDTO;
+import es.uclm.esibuy.statistics.dto.SellerRatingDTO;
+import es.uclm.esibuy.statistics.repository.ProductRatingRow;
 import es.uclm.esibuy.statistics.repository.ProductSalesRow;
+import es.uclm.esibuy.statistics.repository.SellerRatingRow;
 import es.uclm.esibuy.statistics.repository.StatisticsRepository;
 import es.uclm.esibuy.users.model.User;
 import es.uclm.esibuy.users.repository.UserRepository;
@@ -23,14 +31,17 @@ public class StatisticsService {
     private final StatisticsRepository statisticsRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
+    private final GeneralConfigurationService configurationService;
 
     public StatisticsService(
             StatisticsRepository statisticsRepository,
             ProductRepository productRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            GeneralConfigurationService configurationService) {
         this.statisticsRepository = statisticsRepository;
         this.productRepository = productRepository;
         this.userRepository = userRepository;
+        this.configurationService = configurationService;
     }
 
     public List<ProductSalesDTO> getTopSellingProducts() {
@@ -52,17 +63,60 @@ public class StatisticsService {
                 .toList();
     }
 
+    /**
+     * Mejor valorados de la plataforma: los 10 productos con más nota (solo entre los que llegan
+     * al mínimo de valoraciones de la configuración), los 10 vendedores con mejor media y la
+     * media de la plataforma, para compararlos.
+     */
+    public RatingStatisticsDTO getRatingStatistics() {
+        int minimumReviews = configurationService.getMinimumReviewsForRanking();
+        List<ProductRatingRow> productRows = statisticsRepository.findTopRatedProducts(minimumReviews, RANKING_SIZE);
+        List<SellerRatingRow> sellerRows = statisticsRepository.findTopRatedSellers(RANKING_SIZE);
+
+        // Un mismo vendedor puede salir en los dos rankings: su nombre se busca una sola vez
+        Map<String, String> sellerNames = new HashMap<>();
+
+        List<ProductRatingDTO> topProducts = productRows.stream()
+                .map(row -> new ProductRatingDTO(
+                        row.productId(),
+                        row.productName(),
+                        row.sellerId(),
+                        sellerName(row.sellerId(), sellerNames),
+                        round(row.rating()),
+                        row.reviewCount()))
+                .toList();
+        List<SellerRatingDTO> topSellers = sellerRows.stream()
+                .map(row -> new SellerRatingDTO(
+                        row.sellerId(),
+                        sellerName(row.sellerId(), sellerNames),
+                        round(row.averageRating()),
+                        row.ratedProducts()))
+                .toList();
+        Double platformAverage = statisticsRepository.findPlatformAverageRating();
+
+        return new RatingStatisticsDTO(
+                topProducts,
+                topSellers,
+                platformAverage == null ? null : round(platformAverage),
+                minimumReviews);
+    }
+
+    private String sellerName(String sellerId, Map<String, String> sellerNames) {
+        return sellerId == null ? null : sellerNames.computeIfAbsent(sellerId, this::resolveSellerName);
+    }
+
+    private double round(double rating) {
+        return BigDecimal.valueOf(rating).setScale(2, RoundingMode.HALF_UP).doubleValue();
+    }
+
     private ProductSalesDTO toDto(ProductSalesRow row, Product product, Map<String, String> sellerNames) {
         String sellerId = resolveSellerId(row, product);
-        String sellerName = sellerId == null
-                ? null
-                : sellerNames.computeIfAbsent(sellerId, this::resolveSellerName);
 
         return new ProductSalesDTO(
                 row.productId(),
                 resolveProductName(row, product),
                 sellerId,
-                sellerName,
+                sellerName(sellerId, sellerNames),
                 row.unitsSold(),
                 row.revenue());
     }

@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
+import es.uclm.esibuy.configuration.service.GeneralConfigurationService;
 import es.uclm.esibuy.products.model.Product;
 import es.uclm.esibuy.products.model.ProductDetails;
 import es.uclm.esibuy.products.repository.ProductRepository;
@@ -44,11 +45,14 @@ class StatisticsServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private GeneralConfigurationService configurationService;
+
     private StatisticsService service;
 
     @BeforeEach
     void setUp() {
-        service = new StatisticsService(statisticsRepository, productRepository, userRepository);
+        service = new StatisticsService(statisticsRepository, productRepository, userRepository, configurationService);
     }
 
     private ProductSalesRow row(String productId, String sellerId, long units, String revenue) {
