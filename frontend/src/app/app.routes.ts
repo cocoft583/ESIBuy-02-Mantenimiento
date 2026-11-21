@@ -25,6 +25,7 @@ import { PasswordRecovery } from './features/identity/password-recovery/password
 import { GeneralConfigurationPage } from './features/admin/general-configuration/general-configuration';
 import { LegalPage } from './features/legal/legal-page';
 import { webOnlyGuard } from './core/guards/web-only.guard';
+import { WebOnlyNotice } from './features/identity/web-only-notice/web-only-notice';
 
 export const routes: Routes = [
   { path: '', component: Home },
@@ -33,6 +34,7 @@ export const routes: Routes = [
   { path: 'restablecer-password', component: PasswordRecovery },
   { path: 'register', component: Register },
   { path: 'legal/:document', component: LegalPage },
+  { path: 'solo-web', component: WebOnlyNotice, canActivate: [authGuard] },
 
   { path: 'admin/users/new', component: AdminUserCreate, canActivate: [webOnlyGuard, authGuard, roleGuard('ADMIN')] },
   { path: 'admin/altas', redirectTo: 'admin/users/new', pathMatch: 'full' },

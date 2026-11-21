@@ -1,0 +1,23 @@
+<main class="web-only-page">
+  <section class="web-only-card" aria-labelledby="web-only-title">
+    <span class="web-only-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24">
+        <rect x="2" y="4" width="20" height="13" rx="2" />
+        <path d="M8 21h8M12 17v4" />
+      </svg>
+    </span>
+
+    <h1 id="web-only-title">
+      {{ isAdmin() ? 'La administración de ESIBuy está en la web' : 'La gestión de tu tienda está en la web' }}
+    </h1>
+    <p>
+      La app de ESIBuy es para clientes.
+      {{ isAdmin()
+        ? 'Para gestionar usuarios, categorías y productos, entra desde el navegador.'
+        : 'Para gestionar tu catálogo y tus pedidos, entra desde el navegador.' }}
+    </p>
+
+    <a class="open-web" [href]="webUrl" target="_blank" rel="noopener">Abrir ESIBuy en la web</a>
+    <button type="button" class="logout" (click)="logout()">Cerrar sesión</button>
+  </section>
+</main>
