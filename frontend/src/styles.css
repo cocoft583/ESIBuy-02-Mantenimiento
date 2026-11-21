@@ -242,6 +242,8 @@ body {
   .seller-shell .sidebar,
   .seller-shell .client-sidebar {
     width: 100%;
+    /* En móvil la barra va encima del contenido: sin la altura de pantalla completa */
+    height: auto;
     min-height: auto;
     padding: 14px 18px 12px;
   }
@@ -449,6 +451,16 @@ body {
   margin-left: 72px;
   box-sizing: border-box;
 }
+
+/* En móvil la barra lateral va encima: el pie ocupa todo el ancho */
+@media (max-width: 760px) {
+  .app-route-content:has(.seller-layout) + .site-footer,
+  .app-route-content:has(.seller-layout.sidebar-collapsed) + .site-footer {
+    width: auto;
+    margin-left: 0;
+  }
+}
+
 /*
  * iOS amplía la página al enfocar un campo con letra de menos de 16 px y no
  * la vuelve a reducir, lo que deja desplazamiento lateral (login de la app).
