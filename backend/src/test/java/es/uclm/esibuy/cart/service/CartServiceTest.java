@@ -18,6 +18,7 @@ import es.uclm.esibuy.users.model.CustomerType;
 import es.uclm.esibuy.users.model.User;
 import es.uclm.esibuy.users.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -25,6 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -318,6 +320,37 @@ class CartServiceTest {
                 when(product.getDiscount()).thenReturn(standardDiscount);
                 when(product.getPremiumDiscount()).thenReturn(premiumDiscount);
                 return product;
+        }
+
+        @Test
+        @DisplayName("HU13-CP01: cada línea del carrito informa del stock disponible del producto")
+        void shouldExposeTheAvailableStockOfEachCartItem() {
+                Cart existingCart = new Cart(CUSTOMER_ID);
+                existingCart.addOrIncrementItem(PRODUCT_ID, PRODUCT_NAME, PRICE, 2);
+
+                Product product = mock(Product.class);
+                when(product.getStock()).thenReturn(7);
+
+                when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
+                when(cartRepository.findByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(existingCart));
+
+                CartDTO result = cartService.getCart(CUSTOMER_ID);
+
+                assertEquals(7, result.items().get(0).availableStock());
+        }
+
+        @Test
+        @DisplayName("HU13-CP02: si el producto ya no existe, el stock disponible de su línea es nulo")
+        void shouldNotExposeStockWhenTheProductNoLongerExists() {
+                Cart existingCart = new Cart(CUSTOMER_ID);
+                existingCart.addOrIncrementItem(PRODUCT_ID, PRODUCT_NAME, PRICE, 2);
+
+                when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.empty());
+                when(cartRepository.findByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(existingCart));
+
+                CartDTO result = cartService.getCart(CUSTOMER_ID);
+
+                assertNull(result.items().get(0).availableStock());
         }
 
         @Test
