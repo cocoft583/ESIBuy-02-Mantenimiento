@@ -25,13 +25,16 @@ import org.springframework.data.mongodb.gridfs.GridFsTemplate;
 import org.bson.types.ObjectId;
 import org.springframework.web.server.ResponseStatusException;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -39,6 +42,8 @@ import static org.mockito.Mockito.when;
 import es.uclm.esibuy.products.model.ProductDetails;
 import es.uclm.esibuy.products.dto.ProductSummaryDTO;
 import es.uclm.esibuy.products.dto.ProductDetailDTO;
+import es.uclm.esibuy.common.exception.ProductoDesactivadoException;
+import es.uclm.esibuy.security.AuthenticatedUserPrincipal;
 
 @ExtendWith(MockitoExtension.class)
 class ProductServiceTest {
@@ -569,5 +574,100 @@ class ProductServiceTest {
                 assertThrows(ProductNotFoundException.class,
                                 () -> productService.deleteProduct(UNKNOWN_ID, SELLER_EMAIL));
                 verify(productRepository, never()).delete(any(Product.class));
+        }
+
+        @Test
+        @DisplayName("HU19-CP01: el vendedor dueño ve su producto desactivado")
+        void ownerSellerCanSeeDeactivatedProduct() {
+                Product product = deactivatedProduct(SELLER_ID);
+                when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
+                AuthenticatedUserPrincipal owner =
+                                new AuthenticatedUserPrincipal(SELLER_ID, SELLER_EMAIL, UserRole.SELLER, true);
+
+                ProductResponse response =
+                                productService.getProductForClientOrManagement(PRODUCT_ID, owner);
+
+                assertEquals(PRODUCT_ID, response.id());
+                assertFalse(response.available());
+        }
+
+        @Test
+        @DisplayName("HU19-CP02: el administrador ve un producto desactivado")
+        void administratorCanSeeDeactivatedProduct() {
+                Product product = deactivatedProduct(OTHER_SELLER_ID);
+                when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
+                AuthenticatedUserPrincipal admin =
+                                new AuthenticatedUserPrincipal("admin-id", ADMIN_EMAIL, UserRole.ADMIN, true);
+
+                ProductResponse response =
+                                productService.getProductForClientOrManagement(PRODUCT_ID, admin);
+
+                assertFalse(response.available());
+        }
+
+        @Test
+        @DisplayName("HU19-CP03: el cliente recibe 410 para un producto desactivado")
+        void clientGetsGoneForDeactivatedProduct() {
+                Product product = deactivatedProduct(SELLER_ID);
+                when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
+                AuthenticatedUserPrincipal client =
+                                new AuthenticatedUserPrincipal("client-id", CLIENT_EMAIL, UserRole.CLIENT, true);
+
+                ProductoDesactivadoException exception = assertThrows(
+                                ProductoDesactivadoException.class,
+                                () -> productService.getProductForClientOrManagement(PRODUCT_ID, client));
+
+                assertEquals("Este producto ya no está disponible", exception.getMessage());
+                assertEquals("PRODUCT_UNAVAILABLE", ProductoDesactivadoException.CODE);
+        }
+
+        @Test
+        @DisplayName("HU19-CP04: otro vendedor recibe 410 para un producto desactivado")
+        void otherSellerGetsGoneForDeactivatedProduct() {
+                Product product = deactivatedProduct(SELLER_ID);
+                when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
+                AuthenticatedUserPrincipal otherSeller =
+                                new AuthenticatedUserPrincipal(OTHER_SELLER_ID, "other@example.com",
+                                                UserRole.SELLER, true);
+
+                assertThrows(ProductoDesactivadoException.class,
+                                () -> productService.getProductForClientOrManagement(PRODUCT_ID, otherSeller));
+        }
+
+        @Test
+        @DisplayName("HU19-CP05: un usuario anónimo recibe 410 para un producto desactivado")
+        void anonymousGetsGoneForDeactivatedProduct() {
+                Product product = deactivatedProduct(SELLER_ID);
+                when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
+
+                assertThrows(ProductoDesactivadoException.class,
+                                () -> productService.getProductForClientOrManagement(PRODUCT_ID, null));
+        }
+
+        @Test
+        @DisplayName("HU19-CP06: el detalle de un producto activo no cambia")
+        void activeProductDetailRemainsAvailable() {
+                Product product = new Product(new ProductDetails(
+                                PRODUCT_NAME, List.of(CATEGORY_ID), 5, DESC_TEXT,
+                                new BigDecimal(PRODUCT_PRICE), null, null, null, true, SELLER_ID));
+                product.setId(PRODUCT_ID);
+                when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
+
+                AuthenticatedUserPrincipal client =
+                                new AuthenticatedUserPrincipal("client-id", CLIENT_EMAIL, UserRole.CLIENT, true);
+
+                ProductResponse response =
+                                productService.getProductForClientOrManagement(PRODUCT_ID, client);
+
+                assertEquals(PRODUCT_ID, response.id());
+                assertTrue(response.available());
+        }
+
+        private Product deactivatedProduct(String sellerId) {
+                Product product = new Product(new ProductDetails(
+                                PRODUCT_NAME, List.of(CATEGORY_ID), 5, DESC_TEXT,
+                                new BigDecimal(PRODUCT_PRICE), null, null, null, false, sellerId));
+                product.setId(PRODUCT_ID);
+                return product;
         }
 }

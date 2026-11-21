@@ -11,7 +11,7 @@ public record WishlistDTO(
         List<String> productIds,
         Instant createdAt
 ) {
-    public static WishlistDTO from(Wishlist wishlist) {
+    public static WishlistDTO fromPreservingStoredProductIds(Wishlist wishlist) {
         return new WishlistDTO(
                 wishlist.getId(),
                 wishlist.getName(),
@@ -19,5 +19,15 @@ public record WishlistDTO(
                 wishlist.getProductIds() != null ? List.copyOf(wishlist.getProductIds()) : List.of(),
                 wishlist.getCreatedAt()
         );
+    }
+
+    public static WishlistDTO fromWithVisibleProductIds(Wishlist wishlist, List<String> visibleProductIds) {
+        List<String> ids = visibleProductIds != null ? List.copyOf(visibleProductIds) : List.of();
+        return new WishlistDTO(
+                wishlist.getId(),
+                wishlist.getName(),
+                ids.size(),
+                ids,
+                wishlist.getCreatedAt());
     }
 }

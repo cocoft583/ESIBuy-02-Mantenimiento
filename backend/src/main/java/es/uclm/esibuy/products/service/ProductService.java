@@ -29,6 +29,8 @@ import es.uclm.esibuy.categories.model.Category;
 import es.uclm.esibuy.categories.repository.CategoryRepository;
 import es.uclm.esibuy.common.exception.CategoryNotFoundException;
 import es.uclm.esibuy.common.exception.ProductNotFoundException;
+import es.uclm.esibuy.common.exception.ProductoDesactivadoException;
+import es.uclm.esibuy.security.AuthenticatedUserPrincipal;
 import es.uclm.esibuy.products.dto.ProductCreateRequest;
 import es.uclm.esibuy.products.dto.ProductDetailDTO;
 import es.uclm.esibuy.products.dto.ProductResponse;
@@ -685,6 +687,28 @@ private static final String NO_PERMISSIONS_MESSAGE = "No tiene permisos para mod
                         () -> new ProductNotFoundException(PRODUCT_NOT_FOUND_MESSAGE));
 
         return toProductResponse(product);
+    }
+
+    public ProductResponse getProductForClientOrManagement(
+            String id,
+            AuthenticatedUserPrincipal principal) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(
+                        () -> new ProductNotFoundException(PRODUCT_NOT_FOUND_MESSAGE));
+
+        if (product.isAvailable()) {
+            return toProductResponse(product);
+        }
+
+        if (principal != null
+                && (principal.role() == UserRole.ADMIN
+                        || principal.role() == UserRole.SELLER
+                        && principal.id() != null
+                        && principal.id().equals(product.getSellerId()))) {
+            return toProductResponse(product);
+        }
+
+        throw new ProductoDesactivadoException();
     }
 
     public ProductResponse updateProductStatus(

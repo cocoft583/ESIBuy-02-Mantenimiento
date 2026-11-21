@@ -98,8 +98,10 @@ public class ProductController {
     }
 
     @GetMapping("/{id}")
-    public ProductResponse getProduct(@PathVariable String id) {
-        return productService.getProductById(id);
+    public ProductResponse getProduct(
+            @PathVariable String id,
+            @AuthenticationPrincipal AuthenticatedUserPrincipal principal) {
+        return productService.getProductForClientOrManagement(id, principal);
     }
 
     @PutMapping("/{id}")

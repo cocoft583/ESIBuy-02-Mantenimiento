@@ -8,6 +8,7 @@ import java.util.Set;
 
 import es.uclm.esibuy.common.exception.DuplicateWishlistException;
 import es.uclm.esibuy.common.exception.ProductNotFoundException;
+import es.uclm.esibuy.common.exception.ProductoNoDisponibleException;
 import es.uclm.esibuy.common.exception.WishlistNotFoundException;
 import es.uclm.esibuy.products.dto.ProductResponse;
 import es.uclm.esibuy.products.model.Product;
@@ -45,9 +46,13 @@ public class WishlistService {
         List<Wishlist> lists = wishlistRepository.findAllByUserIdOrderByCreatedAtAsc(user.getId());
         if (lists.isEmpty()) {
             Wishlist defaultList = wishlistRepository.save(new Wishlist(user.getId(), DEFAULT_WISHLIST_NAME));
-            lists = List.of(defaultList);
+            return List.of(WishlistDTO.fromWithVisibleProductIds(defaultList, List.of()));
         }
-        return lists.stream().map(WishlistDTO::from).toList();
+        return lists.stream()
+                .map(wishlist -> WishlistDTO.fromWithVisibleProductIds(
+                        wishlist,
+                        getVisibleProductIds(wishlist.getProductIds())))
+                .toList();
     }
 
     public WishlistDTO createWishlist(String name, String authenticatedEmail) {
@@ -60,7 +65,7 @@ public class WishlistService {
 
         Wishlist wishlist = new Wishlist(user.getId(), trimmed);
         Wishlist saved = wishlistRepository.save(wishlist);
-        return WishlistDTO.from(saved);
+        return WishlistDTO.fromPreservingStoredProductIds(saved);
     }
 
     public WishlistDTO updateWishlistName(String listId, String newName, String authenticatedEmail) {
@@ -76,7 +81,7 @@ public class WishlistService {
 
         wishlist.setName(trimmed);
         Wishlist saved = wishlistRepository.save(wishlist);
-        return WishlistDTO.from(saved);
+        return WishlistDTO.fromWithVisibleProductIds(saved, getVisibleProductIds(saved.getProductIds()));
     }
 
     public void deleteWishlist(String listId, String authenticatedEmail) {
@@ -111,12 +116,12 @@ public class WishlistService {
         for (Wishlist list : lists) {
             allIds.addAll(list.getProductIds());
         }
-        return new ArrayList<>(allIds);
+        return getVisibleProductIds(new ArrayList<>(allIds));
     }
 
     public void addToWishlist(String productId, String authenticatedEmail) {
         User user = findClient(authenticatedEmail);
-        validateProductExists(productId);
+        validateProductAvailable(productId);
 
         List<Wishlist> lists = wishlistRepository.findAllByUserIdOrderByCreatedAtAsc(user.getId());
         Wishlist target;
@@ -134,7 +139,7 @@ public class WishlistService {
 
     public void addProductToWishlist(String listId, String productId, String authenticatedEmail) {
         User user = findClient(authenticatedEmail);
-        validateProductExists(productId);
+        validateProductAvailable(productId);
 
         Wishlist wishlist = wishlistRepository.findByIdAndUserId(listId, user.getId())
                 .orElseThrow(() -> new WishlistNotFoundException(WISHLIST_NOT_FOUND_MESSAGE));
@@ -173,6 +178,10 @@ public class WishlistService {
         if (authenticatedEmail == null || authenticatedEmail.isBlank()) {
             return false;
         }
+        Product product = productRepository.findById(productId).orElse(null);
+        if (product == null || !product.isAvailable()) {
+            return false;
+        }
         return userRepository.findByEmailIgnoreCase(authenticatedEmail)
                 .map(user -> {
                     List<Wishlist> lists = wishlistRepository.findAllByUserIdOrderByCreatedAtAsc(user.getId());
@@ -192,9 +201,11 @@ public class WishlistService {
         return trimmed;
     }
 
-    private void validateProductExists(String productId) {
-        if (!productRepository.existsById(productId)) {
-            throw new ProductNotFoundException("Producto no encontrado");
+    private void validateProductAvailable(String productId) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ProductNotFoundException("Producto no encontrado"));
+        if (!product.isAvailable()) {
+            throw new ProductoNoDisponibleException();
         }
     }
 
@@ -203,11 +214,32 @@ public class WishlistService {
             return List.of();
         }
         List<ProductResponse> products = new ArrayList<>();
-        for (String pid : productIds) {
-            Optional<Product> productOpt = productRepository.findById(pid);
-            productOpt.ifPresent(p -> products.add(ProductResponse.from(p)));
+        Set<String> seenProductIds = new LinkedHashSet<>();
+        for (String productId : productIds) {
+            if (productId == null || productId.isBlank() || !seenProductIds.add(productId)) {
+                continue;
+            }
+            productRepository.findById(productId)
+                    .filter(Product::isAvailable)
+                    .ifPresent(product -> products.add(ProductResponse.from(product)));
         }
         return products;
+    }
+
+    private List<String> getVisibleProductIds(List<String> productIds) {
+        if (productIds == null || productIds.isEmpty()) {
+            return List.of();
+        }
+        Set<String> visibleIds = new LinkedHashSet<>();
+        for (String productId : productIds) {
+            if (productId == null || productId.isBlank()) {
+                continue;
+            }
+            productRepository.findById(productId)
+                    .filter(Product::isAvailable)
+                    .ifPresent(product -> visibleIds.add(productId));
+        }
+        return new ArrayList<>(visibleIds);
     }
 
     private User findClient(String authenticatedEmail) {

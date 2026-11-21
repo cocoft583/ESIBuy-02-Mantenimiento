@@ -8,6 +8,7 @@ import java.util.Optional;
 import es.uclm.esibuy.common.exception.DuplicateWishlistException;
 import es.uclm.esibuy.common.exception.ProductNotFoundException;
 import es.uclm.esibuy.common.exception.WishlistNotFoundException;
+import es.uclm.esibuy.common.exception.ProductoNoDisponibleException;
 import es.uclm.esibuy.products.dto.ProductResponse;
 import es.uclm.esibuy.products.model.Product;
 import es.uclm.esibuy.products.model.ProductDetails;
@@ -19,6 +20,7 @@ import es.uclm.esibuy.wishlist.dto.WishlistDTO;
 import es.uclm.esibuy.wishlist.model.Wishlist;
 import es.uclm.esibuy.wishlist.repository.WishlistRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -31,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -197,6 +200,8 @@ class WishlistServiceTest {
         w2.getProductIds().addAll(List.of(PRODUCT_ID_2));
 
         when(wishlistRepository.findAllByUserIdOrderByCreatedAtAsc(CLIENT_ID)).thenReturn(List.of(w1, w2));
+        when(productRepository.findById(PRODUCT_ID_1)).thenReturn(Optional.of(activeProduct("Laptop")));
+        when(productRepository.findById(PRODUCT_ID_2)).thenReturn(Optional.of(activeProduct("Móvil")));
 
         List<String> ids = wishlistService.getWishlistProductIds(CLIENT_EMAIL);
 
@@ -208,7 +213,7 @@ class WishlistServiceTest {
     @Test
     void shouldAddToWishlistDefaultSuccessfully() {
         mockClient();
-        when(productRepository.existsById(PRODUCT_ID_1)).thenReturn(true);
+        when(productRepository.findById(PRODUCT_ID_1)).thenReturn(Optional.of(activeProduct("Laptop")));
         Wishlist defaultList = new Wishlist(CLIENT_ID, "Mi lista");
         defaultList.setProductIds(new ArrayList<>());
         when(wishlistRepository.findAllByUserIdOrderByCreatedAtAsc(CLIENT_ID)).thenReturn(List.of(defaultList));
@@ -222,7 +227,7 @@ class WishlistServiceTest {
     @Test
     void shouldAddProductToSpecificWishlistSuccessfully() {
         mockClient();
-        when(productRepository.existsById(PRODUCT_ID_1)).thenReturn(true);
+        when(productRepository.findById(PRODUCT_ID_1)).thenReturn(Optional.of(activeProduct("Laptop")));
         Wishlist wishlist = new Wishlist(CLIENT_ID, "Específica");
         wishlist.setId(WISHLIST_ID_1);
         when(wishlistRepository.findByIdAndUserId(WISHLIST_ID_1, CLIENT_ID)).thenReturn(Optional.of(wishlist));
@@ -271,6 +276,8 @@ class WishlistServiceTest {
         Wishlist w = new Wishlist(CLIENT_ID, "L1");
         w.getProductIds().add(PRODUCT_ID_1);
         when(wishlistRepository.findAllByUserIdOrderByCreatedAtAsc(CLIENT_ID)).thenReturn(List.of(w));
+        when(productRepository.findById(PRODUCT_ID_1)).thenReturn(Optional.of(activeProduct("Laptop")));
+        when(productRepository.findById("unknown")).thenReturn(Optional.empty());
 
         assertTrue(wishlistService.isInWishlist(PRODUCT_ID_1, CLIENT_EMAIL));
         assertFalse(wishlistService.isInWishlist("unknown", CLIENT_EMAIL));
@@ -283,5 +290,83 @@ class WishlistServiceTest {
         when(userRepository.findByEmailIgnoreCase(SELLER_EMAIL)).thenReturn(Optional.of(sellerUser));
 
         assertThrows(AccessDeniedException.class, () -> wishlistService.getUserWishlists(SELLER_EMAIL));
+    }
+
+    @Test
+    @DisplayName("HU19-CP08: favoritos ocultan desactivados sin borrarlos y vuelven al reactivar")
+    void hidesDeactivatedWishlistProductsAndReappearsWhenReactivated() {
+        mockClient();
+        Wishlist wishlist = new Wishlist(CLIENT_ID, "Favoritos");
+        wishlist.setId(WISHLIST_ID_1);
+        wishlist.getProductIds().add(PRODUCT_ID_1);
+        when(wishlistRepository.findByIdAndUserId(WISHLIST_ID_1, CLIENT_ID))
+                .thenReturn(Optional.of(wishlist));
+        when(wishlistRepository.findAllByUserIdOrderByCreatedAtAsc(CLIENT_ID))
+                .thenReturn(List.of(wishlist));
+
+        Product product = activeProduct("Laptop");
+        product.setAvailable(false);
+        when(productRepository.findById(PRODUCT_ID_1)).thenReturn(Optional.of(product));
+
+        assertEquals(List.of(), wishlistService.getWishlistProducts(WISHLIST_ID_1, CLIENT_EMAIL));
+        assertEquals(List.of(), wishlistService.getWishlistProductIds(CLIENT_EMAIL));
+        assertTrue(wishlist.getProductIds().contains(PRODUCT_ID_1));
+
+        product.setAvailable(true);
+        assertEquals(1, wishlistService.getWishlistProducts(WISHLIST_ID_1, CLIENT_EMAIL).size());
+    }
+
+    @Test
+    @DisplayName("HU19-CP09: ambos métodos de alta rechazan un producto desactivado")
+    void rejectsAddingDeactivatedProductThroughBothRoutes() {
+        when(clientUser.getRole()).thenReturn(UserRole.CLIENT);
+        when(userRepository.findByEmailIgnoreCase(CLIENT_EMAIL)).thenReturn(Optional.of(clientUser));
+
+        Product product = activeProduct("Laptop");
+        product.setAvailable(false);
+        when(productRepository.findById(PRODUCT_ID_1)).thenReturn(Optional.of(product));
+
+        assertThrows(ProductoNoDisponibleException.class,
+                () -> wishlistService.addToWishlist(PRODUCT_ID_1, CLIENT_EMAIL));
+        assertThrows(ProductoNoDisponibleException.class,
+                () -> wishlistService.addProductToWishlist(WISHLIST_ID_1, PRODUCT_ID_1, CLIENT_EMAIL));
+        verifyNoInteractions(wishlistRepository);
+        verify(productRepository, org.mockito.Mockito.times(2)).findById(PRODUCT_ID_1);
+    }
+
+    @Test
+    @DisplayName("HU19-CP10: los contadores excluyen los desactivados")
+    void wishlistCountersExcludeDeactivatedProducts() {
+        mockClient();
+        Wishlist wishlist = new Wishlist(CLIENT_ID, "Favoritos");
+        wishlist.setId(WISHLIST_ID_1);
+        wishlist.getProductIds().addAll(List.of(PRODUCT_ID_1, PRODUCT_ID_2));
+        when(wishlistRepository.findAllByUserIdOrderByCreatedAtAsc(CLIENT_ID))
+                .thenReturn(List.of(wishlist));
+
+        Product inactive = activeProduct("Laptop");
+        inactive.setAvailable(false);
+        when(productRepository.findById(PRODUCT_ID_1)).thenReturn(Optional.of(inactive));
+        when(productRepository.findById(PRODUCT_ID_2)).thenReturn(Optional.of(activeProduct("Móvil")));
+
+        WishlistDTO dto = wishlistService.getUserWishlists(CLIENT_EMAIL).get(0);
+
+        assertEquals(1, dto.itemCount());
+        assertEquals(List.of(PRODUCT_ID_2), dto.productIds());
+        assertTrue(wishlist.getProductIds().contains(PRODUCT_ID_1));
+    }
+
+    private Product activeProduct(String name) {
+        return new Product(new ProductDetails(
+                name,
+                List.of("cat1"),
+                5,
+                "Desc",
+                new BigDecimal("19.99"),
+                null,
+                null,
+                null,
+                true,
+                "seller1"));
     }
 }
