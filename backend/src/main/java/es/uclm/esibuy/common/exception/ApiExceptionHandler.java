@@ -242,6 +242,15 @@ public class ApiExceptionHandler {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(MESSAGE, exception.getMessage()));
         }
 
+        @ExceptionHandler(AccountPendingException.class)
+        public ResponseEntity<Map<String, String>> handleAccountPending(AccountPendingException exception,
+                        HttpServletRequest request) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+                                MESSAGE, exception.getMessage(),
+                                "code", AccountPendingException.CODE,
+                                CORRELATION_ID, correlationId(request)));
+        }
+
         @ExceptionHandler(TooManyRequestsException.class)
         public ResponseEntity<Map<String, String>> handleTooManyRequests(TooManyRequestsException exception,
                         HttpServletRequest request) {
