@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { NEVER, of, throwError } from 'rxjs';
 import { afterEach, describe, beforeEach, it, expect, vi } from 'vitest';
 import { ClientCatalog } from './client-catalog';
@@ -91,7 +91,7 @@ describe('ClientCatalog', () => {
     await TestBed.configureTestingModule({
       imports: [ClientCatalog],
       providers: [
-        provideRouter([]),
+        provideRouter([{ path: '**', children: [] }]),
         { provide: ProductsService, useValue: productsServiceMock },
         { provide: WishlistService, useValue: wishlistServiceMock },
         { provide: ToastService, useValue: toastServiceMock },
@@ -111,7 +111,9 @@ describe('ClientCatalog', () => {
     TestBed.resetTestingModule();
   });
 
-  it('should create and render heading and navigation links in exact order', () => {
+  it('should create and render heading and navigation links in exact order', async () => {
+    await TestBed.inject(Router).navigateByUrl('/client/catalog');
+    fixture.detectChanges();
     expect(component).toBeTruthy();
     const el: HTMLElement = fixture.nativeElement;
 
@@ -126,11 +128,17 @@ describe('ClientCatalog', () => {
   });
 
   it('should toggle sidebar collapsed state', () => {
-    expect(component.sidebarCollapsed()).toBe(false);
-    component.toggleSidebar();
-    expect(component.sidebarCollapsed()).toBe(true);
-    component.toggleSidebar();
-    expect(component.sidebarCollapsed()).toBe(false);
+    const layout = fixture.nativeElement.querySelector('.seller-shell') as HTMLElement;
+    const toggle = () => {
+      (fixture.nativeElement.querySelector('.app-sidebar-toggle') as HTMLButtonElement).click();
+      fixture.detectChanges();
+    };
+
+    expect(layout.classList.contains('app-sidebar-collapsed')).toBe(false);
+    toggle();
+    expect(layout.classList.contains('app-sidebar-collapsed')).toBe(true);
+    toggle();
+    expect(layout.classList.contains('app-sidebar-collapsed')).toBe(false);
   });
 
   it('asks the server for the first page of twelve products', () => {

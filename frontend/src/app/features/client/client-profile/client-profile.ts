@@ -2,7 +2,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Component, computed, CUSTOM_ELEMENTS_SCHEMA, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import { Location } from '@angular/common';
 import { AuthService, CustomerType } from '../../../core/services/auth.service';
 import { DeleteAccount } from '../../../shared/delete-account/delete-account';
@@ -11,6 +11,7 @@ import { ShippingAddresses } from '../shipping-addresses/shipping-addresses';
 import { PaymentMethods } from '../payment-methods/payment-methods';
 import { CLIENT_AVATARS } from '../../../core/constants/avatars';
 import type { ProfileNavigationItem } from '../../../shared/profile-shell/profile-shell';
+import { AppSidebarComponent } from '../../../shared/app-sidebar/app-sidebar';
 
 
 export interface ProfileSection {
@@ -42,7 +43,7 @@ interface UpdateClientProfileRequest {
 @Component({
     selector: 'app-client-profile',
     standalone: true,
-    imports: [FormsModule, RouterLink, DeleteAccount, TwoFactorSettingsComponent, ShippingAddresses, PaymentMethods],
+    imports: [AppSidebarComponent, FormsModule, DeleteAccount, TwoFactorSettingsComponent, ShippingAddresses, PaymentMethods],
     schemas: [CUSTOM_ELEMENTS_SCHEMA],
     templateUrl: './client-profile.html',
     styleUrl: './client-profile.css',
@@ -58,7 +59,6 @@ export class ClientProfile implements OnInit {
     readonly sidebarCollapsed = signal(
         typeof localStorage !== 'undefined' && localStorage.getItem('client-sidebar-collapsed') === 'true'
     );
-    animateTransition = false;
     readonly loading = signal(true);
     readonly profileError = signal<string | null>(null);
     readonly logoutError = signal<string | null>(null);
@@ -127,12 +127,6 @@ export class ClientProfile implements OnInit {
 
     readonly activeSection = signal('personal');
 
-    toggleSidebar(): void {
-        this.animateTransition = true;
-        const collapsed = !this.sidebarCollapsed();
-        this.sidebarCollapsed.set(collapsed);
-        localStorage.setItem('client-sidebar-collapsed', String(collapsed));
-    }
 
     readonly initials = computed(() => {
         const profile = this.profile();

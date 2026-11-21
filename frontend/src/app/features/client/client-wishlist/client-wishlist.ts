@@ -6,11 +6,12 @@ import { ToastService } from '../../../core/services/toast.service';
 import { CartService } from '../../../core/services/cart.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { ProductItem } from '../../../core/services/products.service';
+import { AppSidebarComponent } from '../../../shared/app-sidebar/app-sidebar';
 
 @Component({
   selector: 'app-client-wishlist',
   standalone: true,
-  imports: [FormsModule, RouterLink],
+  imports: [AppSidebarComponent, FormsModule, RouterLink],
   templateUrl: './client-wishlist.html',
   styleUrl: './client-wishlist.css',
 })
@@ -52,17 +53,10 @@ export class ClientWishlist implements OnInit {
     typeof localStorage !== 'undefined' &&
       localStorage.getItem('client-sidebar-collapsed') === 'true',
   );
-  animateTransition = false;
   readonly quantities = signal<Record<string, number>>({});
   readonly addingProducts = signal<Record<string, boolean>>({});
   readonly removingProducts = signal<Record<string, boolean>>({});
 
-  toggleSidebar(): void {
-    this.animateTransition = true;
-    const collapsed = !this.sidebarCollapsed();
-    this.sidebarCollapsed.set(collapsed);
-    localStorage.setItem('client-sidebar-collapsed', String(collapsed));
-  }
 
   getQuantity(productId: string): number {
     return this.quantities()[productId] ?? 1;

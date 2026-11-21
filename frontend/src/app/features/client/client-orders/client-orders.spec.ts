@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { describe, beforeEach, it, expect, vi } from 'vitest';
 import { ClientOrders } from './client-orders';
 import { CartService } from '../../../core/services/cart.service';
@@ -23,7 +23,7 @@ describe('ClientOrders', () => {
     await TestBed.configureTestingModule({
       imports: [ClientOrders],
       providers: [
-        provideRouter([]),
+        provideRouter([{ path: '**', children: [] }]),
         { provide: CartService, useValue: { itemCount: () => 0 } },
         {
           provide: PedidoService,
@@ -42,7 +42,9 @@ describe('ClientOrders', () => {
     await fixture.whenStable();
   });
 
-  it('should create and render navigation order in sidebar with Mis pedidos active', () => {
+  it('should create and render navigation order in sidebar with Mis pedidos active', async () => {
+    await TestBed.inject(Router).navigateByUrl('/client/orders');
+    fixture.detectChanges();
     expect(component).toBeTruthy();
     const el: HTMLElement = fixture.nativeElement;
 
@@ -54,7 +56,7 @@ describe('ClientOrders', () => {
     expect(el.querySelector('#orders-period')).toBeTruthy();
     expect(el.querySelector('#orders-sort')).toBeTruthy();
 
-    const navLinks = Array.from(el.querySelectorAll('.seller-navigation .navigation-link'));
+    const navLinks = Array.from(el.querySelectorAll('.app-navigation .navigation-link'));
     expect(navLinks.length).toBe(4);
     expect(navLinks[0].textContent).toContain('Catálogo');
     expect(navLinks[1].textContent).toContain('Lista de deseos');
@@ -146,11 +148,17 @@ describe('ClientOrders', () => {
   });
 
   it('should toggle sidebar collapsed state', () => {
-    expect(component.sidebarCollapsed()).toBe(false);
-    component.toggleSidebar();
-    expect(component.sidebarCollapsed()).toBe(true);
-    component.toggleSidebar();
-    expect(component.sidebarCollapsed()).toBe(false);
+    const layout = fixture.nativeElement.querySelector('.seller-shell') as HTMLElement;
+    const toggle = () => {
+      (fixture.nativeElement.querySelector('.app-sidebar-toggle') as HTMLButtonElement).click();
+      fixture.detectChanges();
+    };
+
+    expect(layout.classList.contains('app-sidebar-collapsed')).toBe(false);
+    toggle();
+    expect(layout.classList.contains('app-sidebar-collapsed')).toBe(true);
+    toggle();
+    expect(layout.classList.contains('app-sidebar-collapsed')).toBe(false);
   });
 
   it('should show all orders together with only the current status in the list', () => {

@@ -502,3 +502,66 @@
   padding-right: 0;
   padding-left: 0;
 }
+
+/*
+ * En móvil la navegación del cliente es una barra de pestañas fija abajo,
+ * como en una app: no quita sitio arriba y queda a mano del pulgar.
+ */
+@media (max-width: 760px) {
+  .app-sidebar.app-sidebar--client,
+  .app-sidebar.app-sidebar--client.app-sidebar--collapsed {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 45;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    align-items: stretch;
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+    border-top: 1px solid rgb(255 255 255 / 12%);
+    box-shadow: 0 -6px 20px rgb(16 44 64 / 18%);
+    overflow: visible;
+  }
+
+  .app-sidebar.app-sidebar--client .sidebar-caption {
+    display: none;
+  }
+
+  .app-sidebar.app-sidebar--client .app-navigation {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+    padding: 0;
+  }
+
+  .app-sidebar.app-sidebar--client .navigation-link {
+    min-height: 52px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 4px 2px;
+    border-radius: 10px;
+    font-size: 11px;
+    text-align: center;
+  }
+
+  .app-sidebar.app-sidebar--client .navigation-link > span {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .app-sidebar.app-sidebar--client .navigation-link.is-active {
+    box-shadow: inset 0 3px var(--color-brand-accent);
+  }
+
+  .app-sidebar.app-sidebar--client .navigation-icon {
+    width: 22px;
+    height: 22px;
+    flex-basis: auto;
+  }
+}
