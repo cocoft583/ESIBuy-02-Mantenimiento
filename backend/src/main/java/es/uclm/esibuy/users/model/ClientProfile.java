@@ -4,12 +4,18 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.springframework.data.mongodb.core.index.Indexed;
+
 public class ClientProfile {
 
     private LocalDate birthDate;
     private CustomerType customerType = CustomerType.STANDARD;
     private List<ShippingAddress> addresses = new ArrayList<>();
     private List<PaymentMethod> paymentMethods = new ArrayList<>();
+
+    // Categorías que el cliente quiere seguir; la HU28 buscará por ella a quién avisar
+    @Indexed
+    private List<String> favoriteCategoryIds = new ArrayList<>();
 
     public ClientProfile() {
     }
@@ -49,5 +55,13 @@ public class ClientProfile {
 
     public void setPaymentMethods(List<PaymentMethod> paymentMethods) {
         this.paymentMethods = paymentMethods;
+    }
+
+    public List<String> getFavoriteCategoryIds() {
+        return favoriteCategoryIds == null ? new ArrayList<>() : favoriteCategoryIds;
+    }
+
+    public void setFavoriteCategoryIds(List<String> favoriteCategoryIds) {
+        this.favoriteCategoryIds = favoriteCategoryIds;
     }
 }
