@@ -129,7 +129,7 @@ class CartControllerTest {
         }
 
         @Test
-        void shouldReturnBadRequestWhenStockIsInsufficient() throws Exception {
+        void shouldReturnConflictWhenStockIsInsufficient() throws Exception {
                 when(cartService.addItem(eq(CUSTOMER_ID), any()))
                                 .thenThrow(new StockInsuficienteException());
 
@@ -138,7 +138,8 @@ class CartControllerTest {
                                 .with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(VALID_BODY))
-                                .andExpect(status().isBadRequest())
+                                .andExpect(status().isConflict())
+                                .andExpect(jsonPath("$.code").value("INSUFFICIENT_STOCK"))
                                 .andExpect(jsonPath("$.message")
                                                 .value("No hay stock suficiente para la cantidad solicitada"));
         }
@@ -212,7 +213,7 @@ class CartControllerTest {
         }
 
         @Test
-        void shouldReturnBadRequestWhenUpdatedQuantityExceedsStock() throws Exception {
+        void shouldReturnConflictWhenUpdatedQuantityExceedsStock() throws Exception {
                 when(cartService.updateItemQuantity(eq(CUSTOMER_ID), eq(PRODUCT_ID), any()))
                                 .thenThrow(new StockInsuficienteException());
 
@@ -223,7 +224,8 @@ class CartControllerTest {
                                 .content("""
                                                 {"cantidad":5}
                                                 """))
-                                .andExpect(status().isBadRequest())
+                                .andExpect(status().isConflict())
+                                .andExpect(jsonPath("$.code").value("INSUFFICIENT_STOCK"))
                                 .andExpect(jsonPath("$.message")
                                                 .value("No hay stock suficiente para la cantidad solicitada"));
         }
