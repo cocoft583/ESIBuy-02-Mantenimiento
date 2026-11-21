@@ -206,7 +206,10 @@ public class CartService {
                         .multiply(BigDecimal.valueOf(item.quantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal totalPrice = cart.getTotalPrice();
+        // El total sale de los precios de ahora, no del importe guardado al añadir
+        BigDecimal totalPrice = items.stream()
+                .map(CartItemDTO::subtotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal totalDiscount = totalBeforeDiscount.compareTo(totalPrice) > 0
                 ? totalBeforeDiscount.subtract(totalPrice)
@@ -222,15 +225,16 @@ public class CartService {
     }
 
     private CartItemDTO toCartItemDTO(CartItem item, boolean isPremium) {
-        Discount noDiscount = Discount.none();
+        // Sin producto que consultar, la línea conserva el precio guardado al añadirla
+        ItemPricing storedPricing = new ItemPricing(item.getUnitPrice(), item.getUnitPrice(), Discount.none());
 
         if (item.getProductId() == null) {
-            return createCartItemDTO(item, item.getImageUrl(), null, null, item.getUnitPrice(), noDiscount, null);
+            return createCartItemDTO(item, item.getImageUrl(), null, null, storedPricing, null);
         }
 
         Product product = productRepository.findById(item.getProductId()).orElse(null);
         if (product == null) {
-            return createCartItemDTO(item, item.getImageUrl(), null, null, item.getUnitPrice(), noDiscount, null);
+            return createCartItemDTO(item, item.getImageUrl(), null, null, storedPricing, null);
         }
 
         String imageUrl = (item.getImageUrl() != null && !item.getImageUrl().isBlank())
@@ -238,15 +242,22 @@ public class CartService {
                 : product.getImageUrl();
         String sellerId = product.getSellerId();
         String sellerName = resolveSellerName(sellerId);
-        Discount discountInfo = ProductPricing.resolveDiscount(product, isPremium);
+
+        // El precio de la línea es el que tiene el producto ahora para este tipo de cliente
+        // (si el producto no tiene precio, por datos antiguos, se conserva el guardado)
+        ItemPricing currentPricing = product.getPrice() == null
+                ? storedPricing
+                : new ItemPricing(
+                        ProductPricing.effectivePrice(product, isPremium),
+                        product.getPrice(),
+                        ProductPricing.resolveDiscount(product, isPremium));
 
         return createCartItemDTO(
                 item,
                 imageUrl,
                 sellerId,
                 sellerName,
-                product.getPrice(),
-                discountInfo,
+                currentPricing,
                 product.getStock());
     }
 
@@ -255,22 +266,24 @@ public class CartService {
             String imageUrl,
             String sellerId,
             String sellerName,
-            BigDecimal originalPrice,
-            Discount discountInfo,
+            ItemPricing pricing,
             Integer availableStock) {
         return new CartItemDTO(
                 item.getProductId(),
                 item.getName(),
-                item.getUnitPrice(),
+                pricing.unitPrice(),
                 item.getQuantity(),
-                item.getSubtotal(),
+                pricing.unitPrice().multiply(BigDecimal.valueOf(item.getQuantity())),
                 imageUrl,
                 sellerId,
                 sellerName,
-                originalPrice,
-                discountInfo.percentage(),
-                discountInfo.premiumApplied(),
+                pricing.originalPrice(),
+                pricing.discount().percentage(),
+                pricing.discount().premiumApplied(),
                 availableStock);
+    }
+
+    private record ItemPricing(BigDecimal unitPrice, BigDecimal originalPrice, Discount discount) {
     }
 
     private String resolveSellerName(String sellerId) {
