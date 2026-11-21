@@ -119,8 +119,10 @@ public class OrderService {
                 .map(CheckoutPaymentMethodDTO::from)
                 .toList();
 
+        boolean premiumCustomer = isPremiumCustomer(customer);
+
         List<CartItemDTO> items = cart.getItems().stream()
-                .map(this::toCartItemDTO)
+                .map(item -> toCartItemDTO(item, premiumCustomer))
                 .filter(item -> sellerId == null
                         || sellerId.isBlank()
                         || sellerId.equals(item.sellerId()))
@@ -817,10 +819,12 @@ public class OrderService {
                 "Stock insuficiente para " + product.getName());
     }
 
-    private CartItemDTO toCartItemDTO(CartItem item) {
+    private CartItemDTO toCartItemDTO(CartItem item, boolean premiumCustomer) {
         String imageUrl = item.getImageUrl();
         String sellerId = null;
         String sellerName = null;
+        BigDecimal unitPrice = item.getUnitPrice();
+        BigDecimal subtotal = item.getSubtotal();
 
         if (item.getProductId() != null) {
             Product product = productRepository.findById(item.getProductId()).orElse(null);
@@ -832,15 +836,21 @@ public class OrderService {
 
                 sellerId = product.getSellerId();
                 sellerName = resolveSellerName(sellerId);
+
+                // El resumen muestra el mismo precio que se cobrará al confirmar
+                if (product.getPrice() != null) {
+                    unitPrice = ProductPricing.effectivePrice(product, premiumCustomer);
+                    subtotal = unitPrice.multiply(BigDecimal.valueOf(item.getQuantity()));
+                }
             }
         }
 
         return new CartItemDTO(
                 item.getProductId(),
                 item.getName(),
-                item.getUnitPrice(),
+                unitPrice,
                 item.getQuantity(),
-                item.getSubtotal(),
+                subtotal,
                 imageUrl,
                 sellerId,
                 sellerName);
