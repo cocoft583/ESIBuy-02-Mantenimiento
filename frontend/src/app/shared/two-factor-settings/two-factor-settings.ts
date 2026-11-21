@@ -36,6 +36,7 @@ export class TwoFactorSettingsComponent {
 
     twoFactorCode = '';
     recoveryCode = '';
+    reconfigureCode = '';
     backupCodes: string[] = [];
 
     twoFactorBusy = false;
@@ -75,6 +76,26 @@ export class TwoFactorSettingsComponent {
      * Inicia la configuración de la verificación en dos pasos.
      */
     setupTwoFactor(): void {
+        this.requestTwoFactorSetup();
+    }
+
+    /**
+     * Cambia la app de autenticación con el 2FA ya activo. El backend exige
+     * antes un código válido de la app actual (HU08).
+     */
+    reconfigureTwoFactor(): void {
+        const code = this.getVerificationCode(this.reconfigureCode);
+
+        if (!this.isValidVerificationCode(code)) {
+            this.twoFactorError =
+                'Introduce los seis dígitos de tu aplicación de autenticación.';
+            return;
+        }
+
+        this.requestTwoFactorSetup(code);
+    }
+
+    private requestTwoFactorSetup(code?: string): void {
         this.clearMessages();
         this.twoFactorBusy = true;
         this.qrGenerating = true;
@@ -83,8 +104,13 @@ export class TwoFactorSettingsComponent {
 
         this.cdr.detectChanges();
 
-        this.twoFactorService.setup().subscribe({
+        const request = code
+            ? this.twoFactorService.setup(code)
+            : this.twoFactorService.setup();
+
+        request.subscribe({
             next: (result) => {
+                this.reconfigureCode = '';
                 void this.processTwoFactorSetup(result);
             },
             error: (error: TwoFactorHttpError) => {
