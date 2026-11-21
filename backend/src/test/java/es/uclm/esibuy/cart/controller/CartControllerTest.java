@@ -13,6 +13,7 @@ import es.uclm.esibuy.common.exception.StockInsuficienteException;
 import es.uclm.esibuy.security.AuthenticatedUserPrincipal;
 import es.uclm.esibuy.security.config.SecurityConfig;
 import es.uclm.esibuy.users.model.UserRole;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -97,6 +98,31 @@ class CartControllerTest {
                                 .andExpect(jsonPath("$.precioTotal").value(39.98));
 
                 verify(cartService).addItem(eq(CUSTOMER_ID), any());
+        }
+
+        @Test
+        @DisplayName("HU13-CP03: el carrito serializa el stock disponible como stockDisponible")
+        void shouldSerializeTheAvailableStockOfEachItem() throws Exception {
+                CartItemDTO item = new CartItemDTO(
+                                PRODUCT_ID,
+                                "Auriculares",
+                                PRICE,
+                                2,
+                                new BigDecimal("39.98"),
+                                null,
+                                null,
+                                null,
+                                PRICE,
+                                BigDecimal.ZERO,
+                                false,
+                                7);
+                when(cartService.getCart(CUSTOMER_ID)).thenReturn(new CartDTO(
+                                "carrito-1", CUSTOMER_ID, List.of(item), new BigDecimal("39.98")));
+
+                mockMvc.perform(get(API)
+                                .with(authentication(authenticationFor(UserRole.CLIENT))))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.items[0].stockDisponible").value(7));
         }
 
         @Test
