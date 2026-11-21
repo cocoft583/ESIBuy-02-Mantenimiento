@@ -4,9 +4,6 @@ const config: CapacitorConfig = {
   appId: 'es.uclm.esibuy',
   appName: 'ESIBuy',
   webDir: 'dist/frontend/browser',
-  ios: {
-    contentInset: 'always'
-  },
   plugins: {
     // Las peticiones salen por la capa nativa: sin CORS ni bloqueo de cookies
     // de terceros del WebView, y la cookie de sesión vive en el almacén nativo.
