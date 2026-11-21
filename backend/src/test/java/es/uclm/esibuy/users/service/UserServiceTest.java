@@ -24,6 +24,7 @@ import es.uclm.esibuy.security.repository.EmailOtpChallengeRepository;
 import es.uclm.esibuy.auth.passwordreset.repository.PasswordResetTokenRepository;
 import es.uclm.esibuy.security.repository.LoginAttemptRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -653,6 +654,39 @@ class UserServiceTest {
                 verify(passwordResetTokenRepository).deleteAllByUserId("client-1");
                 verify(loginAttemptRepository).deleteAllByEmail("ana@example.com");
 
+                verify(userRepository).delete(client);
+        }
+
+        @Test
+        @DisplayName("HU18-CP13: al eliminar un cliente todos sus pedidos pasan al usuario técnico y se anonimizan")
+        void shouldReassignAndAnonymizeEveryOrderOfTheDeletedClient() {
+                User client = new User(
+                                "ana@example.com",
+                                "Ana",
+                                "García",
+                                UserRole.CLIENT);
+                ReflectionTestUtils.setField(client, "id", "client-1");
+
+                User technicalCustomer = org.mockito.Mockito.mock(User.class);
+                when(technicalCustomer.getId()).thenReturn("technical-customer");
+
+                Order firstOrder = org.mockito.Mockito.mock(Order.class);
+                Order secondOrder = org.mockito.Mockito.mock(Order.class);
+
+                when(userRepository.findById("client-1")).thenReturn(Optional.of(client));
+                when(userRepository.findByEmailIgnoreCase(org.mockito.ArgumentMatchers.anyString()))
+                                .thenReturn(Optional.of(technicalCustomer));
+                when(orderRepository.findAllByCustomerIdOrderByCreatedAtDesc("client-1"))
+                                .thenReturn(List.of(firstOrder, secondOrder));
+
+                userService.deleteOwnAccount("client-1");
+
+                verify(firstOrder).setCustomerId("technical-customer");
+                verify(firstOrder).anonymizeCustomerData();
+                verify(orderRepository).save(firstOrder);
+                verify(secondOrder).setCustomerId("technical-customer");
+                verify(secondOrder).anonymizeCustomerData();
+                verify(orderRepository).save(secondOrder);
                 verify(userRepository).delete(client);
         }
 
