@@ -1,5 +1,6 @@
 package es.uclm.esibuy.users.controller;
 
+import es.uclm.esibuy.common.exception.AccountPendingException;
 import es.uclm.esibuy.common.exception.ApiExceptionHandler;
 import es.uclm.esibuy.common.exception.InvalidCredentialsException;
 import es.uclm.esibuy.common.exception.OtpDeliveryException;
@@ -311,6 +312,23 @@ class UserControllerTest {
                                 .andExpect(status().isUnauthorized());
 
                 verify(loginAttemptService).loginFailed(SELLER_EMAIL, "127.0.0.1");
+        }
+
+        @Test
+        @DisplayName("HU17-CP02: una cuenta pendiente recibe 403 ACCOUNT_PENDING y el intento no cuenta")
+        void shouldRespondForbiddenWithoutCountingTheAttemptWhenAccountIsPending() throws Exception {
+                doThrow(new AccountPendingException())
+                                .when(userService).login(any(LoginRequest.class));
+
+                loginRequest()
+                                .andExpect(status().isForbidden())
+                                .andExpect(jsonPath("$.code").value("ACCOUNT_PENDING"))
+                                .andExpect(jsonPath("$.message")
+                                                .value("Tu cuenta está pendiente de aprobación por un administrador"));
+
+                verify(loginAttemptService, never()).loginFailed(any(), any());
+                verify(loginAttemptService, never()).loginSucceeded(any(), any());
+                verify(sessionAuthenticationService, never()).authenticate(any(), any(), any());
         }
 
         @Test
