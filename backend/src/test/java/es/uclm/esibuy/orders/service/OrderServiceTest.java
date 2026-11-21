@@ -233,12 +233,14 @@ class OrderServiceTest {
         }
 
         @Test
-        void shouldPreserveDiscountedUnitPriceFromCartWhenCreatingOrder() {
+        void shouldChargeTheCurrentDiscountedPriceWhenCreatingOrder() {
                 Cart cartWithDiscount = new Cart(CUSTOMER_ID);
                 cartWithDiscount.addOrIncrementItem(PRODUCT_ID, "Auriculares", new BigDecimal("85.00"), 1);
 
+                // El producto cuesta 100 con un 15 % de descuento: el precio actual es 85
                 Product catalogProduct = productWithStock(5);
                 catalogProduct.setPrice(new BigDecimal("100.00"));
+                catalogProduct.setDiscount(new BigDecimal("15"));
 
                 when(cartRepository.findByCustomerId(CUSTOMER_ID)).thenReturn(Optional.of(cartWithDiscount));
                 when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(catalogProduct));
