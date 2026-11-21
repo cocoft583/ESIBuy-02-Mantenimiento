@@ -611,7 +611,7 @@ class UserServiceTest {
                 when(userRepository.findById("client-1"))
                                 .thenReturn(Optional.of(client));
 
-                when(userRepository.findByEmailIgnoreCase("cliente.eliminado@esibuy.local"))
+                when(userRepository.findByEmailIgnoreCase("cliente-eliminado"))
                                 .thenReturn(Optional.empty());
 
                 when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
@@ -631,7 +631,7 @@ class UserServiceTest {
 
                 User deletedCustomer = userCaptor.getValue();
 
-                assertEquals("cliente.eliminado@esibuy.local", deletedCustomer.getEmail());
+                assertEquals("cliente-eliminado", deletedCustomer.getEmail());
                 assertEquals("Cliente", deletedCustomer.getFirstName());
                 assertEquals("eliminado", deletedCustomer.getLastName());
                 assertEquals(UserRole.CLIENT, deletedCustomer.getRole());

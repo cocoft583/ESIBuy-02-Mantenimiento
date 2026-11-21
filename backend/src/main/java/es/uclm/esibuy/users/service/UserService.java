@@ -26,6 +26,7 @@ import es.uclm.esibuy.users.dto.UpdateOwnProfileRequestDTO;
 import es.uclm.esibuy.users.dto.UserProfileResponse;
 import es.uclm.esibuy.users.model.AdminProfile;
 import es.uclm.esibuy.users.model.ClientProfile;
+import es.uclm.esibuy.users.model.ReservedAccounts;
 import es.uclm.esibuy.users.model.SellerProfile;
 import es.uclm.esibuy.users.model.User;
 import es.uclm.esibuy.users.model.UserRole;
@@ -44,7 +45,6 @@ import es.uclm.esibuy.users.model.CustomerType;
 public class UserService {
 
     private static final String MSG_DUPLICATE_EMAIL = "No se ha podido completar el registro. Comprueba los datos introducidos e inténtalo de nuevo";
-    private static final String DELETED_CUSTOMER_EMAIL = "cliente.eliminado@esibuy.local";
 
     private final OrderRepository orderRepository;
     private final CartRepository cartRepository;
@@ -283,10 +283,10 @@ public class UserService {
     }
 
     private User getOrCreateDeletedCustomer() {
-        return userRepository.findByEmailIgnoreCase(DELETED_CUSTOMER_EMAIL)
+        return userRepository.findByEmailIgnoreCase(ReservedAccounts.DELETED_CUSTOMER_ID)
                 .orElseGet(() -> {
                     User deletedCustomer = new User(
-                            DELETED_CUSTOMER_EMAIL,
+                            ReservedAccounts.DELETED_CUSTOMER_ID,
                             "Cliente",
                             "eliminado",
                             UserRole.CLIENT);
