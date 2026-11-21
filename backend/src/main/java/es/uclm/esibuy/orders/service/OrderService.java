@@ -193,31 +193,33 @@ public class OrderService {
         reserveStock(items);
 
         OrderPaymentMethod orderPaymentMethod = OrderPaymentMethod.from(paymentMethod);
-        boolean paymentAccepted;
 
-        try {
-            paymentAccepted = paymentGateway.charge(orderPaymentMethod, totalPrice);
-        } catch (RuntimeException exception) {
-            releaseStock(items, exception);
-            throw exception;
-        }
-
-        if (!paymentAccepted) {
-            PagoFallidoException paymentException = new PagoFallidoException();
-            releaseStock(items, paymentException);
-            throw paymentException;
-        }
-
-        Order order = new Order(
+        Order pendingOrder = orderRepository.save(new Order(
                 customerId,
                 items,
                 totalPrice,
                 OrderShippingAddress.from(shippingAddress),
                 orderPaymentMethod,
                 OrderStatus.PENDIENTE,
-                OrderPaymentStatus.PAGADO);
+                OrderPaymentStatus.PENDIENTE));
 
-        Order savedOrder = orderRepository.save(order);
+        boolean paymentAccepted;
+
+        try {
+            paymentAccepted = paymentGateway.charge(orderPaymentMethod, totalPrice);
+        } catch (RuntimeException exception) {
+            discardPendingOrder(pendingOrder, items, exception);
+            throw exception;
+        }
+
+        if (!paymentAccepted) {
+            PagoFallidoException paymentException = new PagoFallidoException();
+            discardPendingOrder(pendingOrder, items, paymentException);
+            throw paymentException;
+        }
+
+        pendingOrder.markAsPaid();
+        Order savedOrder = orderRepository.save(pendingOrder);
 
         for (OrderItem item : items) {
             cart.removeItem(item.productId());
@@ -231,6 +233,16 @@ public class OrderService {
                 savedOrder.getStatus(),
                 savedOrder.getCreatedAt(),
                 savedOrder.getPaymentStatus());
+    }
+
+    private void discardPendingOrder(Order pendingOrder, List<OrderItem> items, RuntimeException cause) {
+        try {
+            orderRepository.delete(pendingOrder);
+        } catch (RuntimeException exception) {
+            cause.addSuppressed(exception);
+        }
+
+        releaseStock(items, cause);
     }
 
     private OrderPricing calculatePricing(
