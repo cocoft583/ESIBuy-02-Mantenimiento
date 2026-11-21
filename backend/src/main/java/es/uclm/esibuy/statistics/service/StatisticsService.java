@@ -34,23 +34,33 @@ public class StatisticsService {
     }
 
     public List<ProductSalesDTO> getTopSellingProducts() {
+        List<ProductSalesRow> rows = statisticsRepository.findTopSellingProducts(RANKING_SIZE);
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+
+        // Los productos del ranking se piden de una vez: dan el nombre actual y, si hace falta, el vendedor
+        Map<String, Product> products = new HashMap<>();
+        productRepository.findAllById(rows.stream().map(ProductSalesRow::productId).toList())
+                .forEach(product -> products.put(product.getId(), product));
+
         // Un mismo vendedor puede aparecer en varias filas: su nombre se busca una sola vez
         Map<String, String> sellerNames = new HashMap<>();
 
-        return statisticsRepository.findTopSellingProducts(RANKING_SIZE).stream()
-                .map(row -> toDto(row, sellerNames))
+        return rows.stream()
+                .map(row -> toDto(row, products.get(row.productId()), sellerNames))
                 .toList();
     }
 
-    private ProductSalesDTO toDto(ProductSalesRow row, Map<String, String> sellerNames) {
-        String sellerId = resolveSellerId(row);
+    private ProductSalesDTO toDto(ProductSalesRow row, Product product, Map<String, String> sellerNames) {
+        String sellerId = resolveSellerId(row, product);
         String sellerName = sellerId == null
                 ? null
                 : sellerNames.computeIfAbsent(sellerId, this::resolveSellerName);
 
         return new ProductSalesDTO(
                 row.productId(),
-                row.productName(),
+                resolveProductName(row, product),
                 sellerId,
                 sellerName,
                 row.unitsSold(),
@@ -58,18 +68,31 @@ public class StatisticsService {
     }
 
     /**
+     * Si el producto se renombró, el ranking muestra el nombre actual y no uno de los que
+     * quedaron guardados en los pedidos. Si el producto ya no existe se usa el del pedido.
+     */
+    private String resolveProductName(ProductSalesRow row, Product product) {
+        if (product != null && product.getName() != null && !product.getName().isBlank()) {
+            return product.getName();
+        }
+
+        return row.productName();
+    }
+
+    /**
      * Las líneas de pedidos antiguas pueden no guardar el vendedor: entonces se toma
      * el del producto, si todavía existe.
      */
-    private String resolveSellerId(ProductSalesRow row) {
+    private String resolveSellerId(ProductSalesRow row, Product product) {
         if (row.sellerId() != null && !row.sellerId().isBlank()) {
             return row.sellerId();
         }
 
-        return productRepository.findById(row.productId())
-                .map(Product::getSellerId)
-                .filter(id -> !id.isBlank())
-                .orElse(null);
+        if (product == null || product.getSellerId() == null || product.getSellerId().isBlank()) {
+            return null;
+        }
+
+        return product.getSellerId();
     }
 
     private String resolveSellerName(String sellerId) {

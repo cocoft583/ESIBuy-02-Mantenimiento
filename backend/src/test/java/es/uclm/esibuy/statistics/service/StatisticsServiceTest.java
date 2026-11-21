@@ -20,10 +20,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -60,10 +63,12 @@ class StatisticsServiceTest {
         return seller;
     }
 
-    private Product productOf(String sellerId) {
-        return new Product(new ProductDetails(
-                "Producto", List.of("categoria-1"), 5, "Descripción",
+    private Product productOf(String id, String name, String sellerId) {
+        Product product = new Product(new ProductDetails(
+                name, List.of("categoria-1"), 5, "Descripción",
                 new BigDecimal("10.00"), null, null, null, true, sellerId));
+        ReflectionTestUtils.setField(product, "id", id);
+        return product;
     }
 
     @Test
@@ -118,7 +123,7 @@ class StatisticsServiceTest {
     @DisplayName("HU22-CP12: si la línea del pedido no guarda el vendedor se toma el del producto")
     void shouldTakeTheSellerFromTheProductWhenTheOrderLineHasNone() {
         when(statisticsRepository.findTopSellingProducts(10)).thenReturn(List.of(row("p1", null, 3, "30.00")));
-        when(productRepository.findById("p1")).thenReturn(Optional.of(productOf("v9")));
+        when(productRepository.findAllById(List.of("p1"))).thenReturn(List.of(productOf("p1", "Producto", "v9")));
         when(userRepository.findById("v9")).thenReturn(Optional.of(seller("Luis", "Martín", "Hogar SA")));
 
         ProductSalesDTO result = service.getTopSellingProducts().get(0);
@@ -133,8 +138,8 @@ class StatisticsServiceTest {
         when(statisticsRepository.findTopSellingProducts(10)).thenReturn(List.of(
                 row("p1", null, 3, "30.00"),
                 row("p2", "  ", 2, "20.00")));
-        when(productRepository.findById("p1")).thenReturn(Optional.empty());
-        when(productRepository.findById("p2")).thenReturn(Optional.of(productOf(null)));
+        // El p1 ya no existe y el p2 existe pero sin vendedor
+        when(productRepository.findAllById(List.of("p1", "p2"))).thenReturn(List.of(productOf("p2", "Producto", null)));
 
         List<ProductSalesDTO> result = service.getTopSellingProducts();
 
@@ -162,5 +167,43 @@ class StatisticsServiceTest {
                 result.stream().map(ProductSalesDTO::sellerName).toList());
         verify(userRepository, times(1)).findById("v1");
         verify(userRepository, times(1)).findById("v2");
+    }
+
+    @Test
+    @DisplayName("HU22-CP22: si el producto se renombró, el ranking muestra su nombre actual")
+    void shouldShowTheCurrentNameWhenTheProductWasRenamed() {
+        when(statisticsRepository.findTopSellingProducts(10)).thenReturn(List.of(
+                new ProductSalesRow("p1", "Auriculares antiguos", "v1", 5, new BigDecimal("50.00"))));
+        when(productRepository.findAllById(List.of("p1")))
+                .thenReturn(List.of(productOf("p1", "Auriculares Pro", "v1")));
+        when(userRepository.findById("v1")).thenReturn(Optional.of(seller("Ana", "López", "Sonido SL")));
+
+        assertEquals("Auriculares Pro", service.getTopSellingProducts().get(0).productName());
+    }
+
+    @Test
+    @DisplayName("HU22-CP23: si el producto ya no existe, se muestra el nombre guardado en los pedidos")
+    void shouldKeepTheNameStoredInTheOrdersWhenTheProductNoLongerExists() {
+        when(statisticsRepository.findTopSellingProducts(10)).thenReturn(List.of(
+                new ProductSalesRow("p1", "Auriculares", "v1", 5, new BigDecimal("50.00"))));
+        when(productRepository.findAllById(List.of("p1"))).thenReturn(List.of());
+        when(userRepository.findById("v1")).thenReturn(Optional.empty());
+
+        assertEquals("Auriculares", service.getTopSellingProducts().get(0).productName());
+    }
+
+    @Test
+    @DisplayName("HU22-CP24: los productos del ranking se piden todos de una vez")
+    void shouldLoadTheProductsOfTheRankingInASingleQuery() {
+        when(statisticsRepository.findTopSellingProducts(10)).thenReturn(List.of(
+                row("p1", "v1", 5, "50.00"),
+                row("p2", "v1", 4, "40.00"),
+                row("p3", "v1", 3, "30.00")));
+        when(userRepository.findById("v1")).thenReturn(Optional.of(seller("Ana", "López", "Sonido SL")));
+
+        service.getTopSellingProducts();
+
+        verify(productRepository, times(1)).findAllById(List.of("p1", "p2", "p3"));
+        verify(productRepository, never()).findById(any());
     }
 }
