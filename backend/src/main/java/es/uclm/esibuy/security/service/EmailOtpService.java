@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.util.Locale;
 
 import es.uclm.esibuy.common.exception.InvalidOtpException;
+import es.uclm.esibuy.common.exception.OtpDeliveryException;
 import es.uclm.esibuy.security.model.EmailOtpChallenge;
 import es.uclm.esibuy.security.repository.EmailOtpChallengeRepository;
 import es.uclm.esibuy.users.model.User;
@@ -64,7 +65,13 @@ public class EmailOtpService {
                 purpose);
 
         repository.save(challenge);
-        otpMailSender.sendOtp(user.getEmail(), code);
+
+        try {
+            otpMailSender.sendOtp(user.getEmail(), code);
+        } catch (OtpDeliveryException exception) {
+            repository.deleteByUserIdAndPurpose(user.getId(), purpose);
+            throw exception;
+        }
     }
 
     public void verifyChallenge(String userId, String code) {

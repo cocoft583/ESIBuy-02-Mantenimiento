@@ -8,13 +8,16 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.util.Optional;
 
+import es.uclm.esibuy.common.exception.OtpDeliveryException;
 import es.uclm.esibuy.security.model.EmailOtpChallenge;
 import es.uclm.esibuy.security.repository.EmailOtpChallengeRepository;
 import es.uclm.esibuy.users.model.User;
@@ -105,6 +108,19 @@ class EmailOtpServiceTest {
 
                 assertNotNull(codeCaptor.getValue());
                 assertTrue(codeCaptor.getValue().matches("\\d{6}"));
+        }
+
+        @Test
+        void removesTheChallengeWhenTheCodeCannotBeSent() {
+                when(user.getId()).thenReturn("user-1");
+                when(user.getEmail()).thenReturn("user@example.com");
+                when(passwordEncoder.encode(anyString())).thenReturn("hashed-code");
+                doThrow(new OtpDeliveryException(new RuntimeException("smtp")))
+                                .when(otpMailSender).sendOtp(anyString(), anyString());
+
+                assertThrows(OtpDeliveryException.class, () -> service.issueChallenge(user));
+
+                verify(repository, times(2)).deleteByUserIdAndPurpose("user-1", "LOGIN");
         }
 
         @Test

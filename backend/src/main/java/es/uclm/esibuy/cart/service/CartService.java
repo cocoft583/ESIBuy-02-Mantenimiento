@@ -221,13 +221,15 @@ public class CartService {
     }
 
     private CartItemDTO toCartItemDTO(CartItem item, boolean isPremium) {
+        DiscountInfo noDiscount = new DiscountInfo(BigDecimal.ZERO, false);
+
         if (item.getProductId() == null) {
-            return createCartItemDTO(item, item.getImageUrl(), null, null, item.getUnitPrice(), BigDecimal.ZERO, false);
+            return createCartItemDTO(item, item.getImageUrl(), null, null, item.getUnitPrice(), noDiscount, null);
         }
 
         Product product = productRepository.findById(item.getProductId()).orElse(null);
         if (product == null) {
-            return createCartItemDTO(item, item.getImageUrl(), null, null, item.getUnitPrice(), BigDecimal.ZERO, false);
+            return createCartItemDTO(item, item.getImageUrl(), null, null, item.getUnitPrice(), noDiscount, null);
         }
 
         String imageUrl = (item.getImageUrl() != null && !item.getImageUrl().isBlank())
@@ -243,8 +245,8 @@ public class CartService {
                 sellerId,
                 sellerName,
                 product.getPrice(),
-                discountInfo.discount(),
-                discountInfo.isPremiumDiscount());
+                discountInfo,
+                product.getStock());
     }
 
     private CartItemDTO createCartItemDTO(
@@ -253,8 +255,8 @@ public class CartService {
             String sellerId,
             String sellerName,
             BigDecimal originalPrice,
-            BigDecimal discount,
-            boolean isPremiumDiscount) {
+            DiscountInfo discountInfo,
+            Integer availableStock) {
         return new CartItemDTO(
                 item.getProductId(),
                 item.getName(),
@@ -265,8 +267,9 @@ public class CartService {
                 sellerId,
                 sellerName,
                 originalPrice,
-                discount,
-                isPremiumDiscount);
+                discountInfo.discount(),
+                discountInfo.isPremiumDiscount(),
+                availableStock);
     }
 
     private record DiscountInfo(BigDecimal discount, boolean isPremiumDiscount) {
