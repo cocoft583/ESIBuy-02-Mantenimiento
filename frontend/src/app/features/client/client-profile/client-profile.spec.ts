@@ -94,14 +94,14 @@ describe('ClientProfile', () => {
         });
 
         const clientLinks = el.querySelectorAll(
-            '.seller-navigation .navigation-link',
+            '.app-navigation .navigation-link',
         );
 
         expect(clientLinks).toHaveLength(4);
         expect(clientLinks[2].textContent).toContain('Mis pedidos');
 
         expect(
-            el.querySelector('.seller-navigation a[href="/client/profile"]'),
+            el.querySelector('.app-navigation a[href="/client/profile"]'),
         ).toBeNull();
     });
 

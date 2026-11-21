@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { NEVER, of } from 'rxjs';
 import { describe, beforeEach, afterEach, it, expect, vi } from 'vitest';
 import { ClientWishlist } from './client-wishlist';
@@ -79,7 +79,7 @@ describe('ClientWishlist', () => {
     await TestBed.configureTestingModule({
       imports: [ClientWishlist],
       providers: [
-        provideRouter([]),
+        provideRouter([{ path: '**', children: [] }]),
         { provide: WishlistService, useValue: wishlistServiceMock },
         { provide: ToastService, useValue: toastServiceMock },
         { provide: CartService, useValue: cartServiceMock },
@@ -97,7 +97,9 @@ describe('ClientWishlist', () => {
     localStorage.clear();
   });
 
-  it('should create and render navigation order in sidebar and wishlist heading', () => {
+  it('should create and render navigation order in sidebar and wishlist heading', async () => {
+    await TestBed.inject(Router).navigateByUrl('/client/wishlist');
+    fixture.detectChanges();
     expect(component).toBeTruthy();
     const el: HTMLElement = fixture.nativeElement;
 
@@ -191,11 +193,17 @@ describe('ClientWishlist', () => {
   });
 
   it('should toggle sidebar collapsed state', () => {
-    expect(component.sidebarCollapsed()).toBe(false);
-    component.toggleSidebar();
-    expect(component.sidebarCollapsed()).toBe(true);
-    component.toggleSidebar();
-    expect(component.sidebarCollapsed()).toBe(false);
+    const layout = fixture.nativeElement.querySelector('.seller-shell') as HTMLElement;
+    const toggle = () => {
+      (fixture.nativeElement.querySelector('.app-sidebar-toggle') as HTMLButtonElement).click();
+      fixture.detectChanges();
+    };
+
+    expect(layout.classList.contains('app-sidebar-collapsed')).toBe(false);
+    toggle();
+    expect(layout.classList.contains('app-sidebar-collapsed')).toBe(true);
+    toggle();
+    expect(layout.classList.contains('app-sidebar-collapsed')).toBe(false);
   });
 
   it('should add item to cart with selected quantity', () => {

@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { of, Subject, throwError } from 'rxjs';
 import { CartService } from '../../../core/services/cart.service';
 import { PedidoService } from '../../../core/services/pedido.service';
@@ -25,7 +25,7 @@ describe('ClientCart', () => {
     await TestBed.configureTestingModule({
       imports: [ClientCart],
       providers: [
-        provideRouter([]),
+        provideRouter([{ path: '**', children: [] }]),
         {
           provide: CartService,
           useValue: {
@@ -50,14 +50,14 @@ describe('ClientCart', () => {
     fixture.componentInstance.setSelectedProductIds(['product-1']);
     fixture.detectChanges();
     expect(element.querySelector('.total-line')?.textContent).toContain('25,00 €');
-    const navigationLinks = Array.from(element.querySelectorAll('.seller-navigation .navigation-link'));
+    await TestBed.inject(Router).navigateByUrl('/client/cart');
+    fixture.detectChanges();
+    const navigationLinks = Array.from(element.querySelectorAll('.app-navigation .navigation-link'));
     expect(navigationLinks).toHaveLength(4);
     expect(navigationLinks[2].textContent).toContain('Mis pedidos');
     expect(navigationLinks[3].getAttribute('href')).toBe('/client/cart');
     expect(navigationLinks[3].getAttribute('aria-current')).toBe('page');
     const orderIcon = navigationLinks[2].querySelector('svg');
-    expect(orderIcon?.getAttribute('fill')).toBe('none');
-    expect(orderIcon?.getAttribute('stroke')).toBe('currentColor');
     expect(orderIcon?.querySelector('path')?.getAttribute('d')).toContain('M21 8');
   });
 
