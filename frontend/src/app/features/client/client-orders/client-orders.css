@@ -1070,6 +1070,11 @@
     flex-direction: column;
   }
 
+  /* En columna, su flex-basis de 280 px pasaba a ser altura y estiraba la cabecera */
+  .orders-search {
+    flex: 0 0 auto;
+  }
+
   .orders-filter-fields {
     grid-template-columns: 1fr;
   }
