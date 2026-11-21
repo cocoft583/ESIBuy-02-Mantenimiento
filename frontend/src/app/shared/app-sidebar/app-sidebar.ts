@@ -4,6 +4,9 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
 
 export type SidebarVariant = 'admin' | 'seller' | 'seller-compact' | 'client';
 
+// En móvil la barra va encima del contenido, así que plegarla no tiene sentido.
+const MOBILE_QUERY = '(max-width: 760px)';
+
 @Component({
   selector: 'app-shared-sidebar',
   standalone: true,
@@ -17,11 +20,18 @@ export class AppSidebarComponent implements OnInit {
   @Output() readonly collapsedChange = new EventEmitter<boolean>();
 
   animateTransition = false;
+  isMobile = false;
 
   constructor(@Inject(PLATFORM_ID) private readonly platformId: object) { }
 
   ngOnInit(): void {
     if (!isPlatformBrowser(this.platformId)) {
+      return;
+    }
+
+    this.isMobile = window.matchMedia?.(MOBILE_QUERY).matches ?? false;
+    if (this.isMobile) {
+      this.collapsedChange.emit(false);
       return;
     }
 
