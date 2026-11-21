@@ -31,6 +31,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -382,6 +384,122 @@ class ProductServiceTest {
                 assertThrows(org.springframework.security.access.AccessDeniedException.class,
                                 () -> productService.getSummary(CLIENT_EMAIL));
                 verify(productRepository, never()).countBySellerId(any());
+        }
+
+        // HU15: el vendedor marca un producto como exclusivo Premium al crearlo o editarlo.
+
+        private void stubSellerWithCategory() {
+                User seller = org.mockito.Mockito.mock(User.class);
+                when(seller.getId()).thenReturn(SELLER_ID);
+                when(seller.getRole()).thenReturn(UserRole.SELLER);
+                when(userRepository.findByEmailIgnoreCase(SELLER_EMAIL)).thenReturn(Optional.of(seller));
+                when(categoryRepository.findAllById(List.of(CATEGORY_ID)))
+                                .thenReturn(List.of(new Category(CATEGORY_ID, CATEGORY_NAME_ELECTRONICS)));
+        }
+
+        private Product ownedProduct(boolean premiumOnly) {
+                Product product = new Product(new ProductDetails(
+                                PRODUCT_NAME, List.of(CATEGORY_ID), 1, null,
+                                new BigDecimal(PRODUCT_PRICE), null, null, null, true, SELLER_ID));
+                product.setId(PRODUCT_ID);
+                product.setPremiumOnly(premiumOnly);
+                return product;
+        }
+
+        @Test
+        void shouldCreatePremiumOnlyProductWhenRequested() {
+                stubSellerWithCategory();
+                when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+                ProductCreateRequest request = validRequest();
+                request.setPremiumOnly(true);
+
+                Product result = productService.createProduct(request, SELLER_EMAIL);
+
+                assertTrue(result.isPremiumOnly());
+        }
+
+        @Test
+        void shouldCreateRegularProductWhenPremiumOnlyIsNotSent() {
+                stubSellerWithCategory();
+                when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+                Product result = productService.createProduct(validRequest(), SELLER_EMAIL);
+
+                assertFalse(result.isPremiumOnly());
+        }
+
+        @Test
+        void shouldCreatePremiumOnlyProductWithImageEndpoint() {
+                stubSellerWithCategory();
+                when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+                ProductCreateRequest request = validRequest();
+                request.setPremiumOnly(true);
+
+                Product result = productService.createProductWithImage(request, null, SELLER_EMAIL);
+
+                assertTrue(result.isPremiumOnly());
+        }
+
+        @Test
+        void shouldMarkProductAsPremiumOnlyWhenUpdating() {
+                stubSellerWithCategory();
+                Product product = ownedProduct(false);
+                when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
+                when(productRepository.save(product)).thenReturn(product);
+                ProductCreateRequest request = validRequest();
+                request.setPremiumOnly(true);
+
+                Product result = productService.updateProduct(PRODUCT_ID, request, SELLER_EMAIL);
+
+                assertTrue(result.isPremiumOnly());
+        }
+
+        @Test
+        void shouldRemovePremiumOnlyWhenUpdatingWithoutIt() {
+                stubSellerWithCategory();
+                Product product = ownedProduct(true);
+                when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
+                when(productRepository.save(product)).thenReturn(product);
+                ProductCreateRequest request = validRequest();
+                request.setPremiumOnly(false);
+
+                Product result = productService.updateProduct(PRODUCT_ID, request, SELLER_EMAIL);
+
+                assertFalse(result.isPremiumOnly());
+        }
+
+        @Test
+        void shouldMarkProductAsPremiumOnlyWhenUpdatingWithImageEndpoint() {
+                stubSellerWithCategory();
+                Product product = ownedProduct(false);
+                when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
+                when(productRepository.save(product)).thenReturn(product);
+                ProductCreateRequest request = validRequest();
+                request.setPremiumOnly(true);
+
+                Product result = productService.updateProductWithImage(PRODUCT_ID, request, null, SELLER_EMAIL);
+
+                assertTrue(result.isPremiumOnly());
+        }
+
+        @Test
+        void shouldKeepPremiumDiscountWhenProductIsPremiumOnly() {
+                stubSellerWithCategory();
+                when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+                ProductCreateRequest request = validRequest();
+                request.setPremiumDiscount(new BigDecimal("15"));
+                request.setPremiumOnly(true);
+
+                Product result = productService.createProduct(request, SELLER_EMAIL);
+
+                assertEquals(new BigDecimal("15"), result.getPremiumDiscount());
+                assertTrue(result.isPremiumOnly());
+        }
+
+        @Test
+        void shouldExposePremiumOnlyInProductResponse() {
+                assertTrue(ProductResponse.from(ownedProduct(true)).premiumOnly());
+                assertFalse(ProductResponse.from(ownedProduct(false)).premiumOnly());
         }
 
         private ProductCreateRequest validRequest() {

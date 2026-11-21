@@ -25,6 +25,9 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 
+import org.mockito.ArgumentCaptor;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -425,6 +428,58 @@ class ProductControllerTest {
                                 .with(user(ADMIN_EMAIL).roles("ADMIN")))
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.id").value(PROD_1_ID));
+        }
+
+        // HU15: el campo premiumOnly llega al servicio y vuelve en la respuesta.
+
+        private Product productWithPremiumOnly(boolean premiumOnly) {
+                Product product = new Product(new ProductDetails(
+                                PRODUCT_NAME, List.of(CATEGORY_ID), 0, null,
+                                new BigDecimal(PRODUCT_PRICE), null, null, null, true, SELLER_ID));
+                product.setPremiumOnly(premiumOnly);
+                return product;
+        }
+
+        private String requestWithPremiumOnly(boolean premiumOnly) {
+                return """
+                                {"name":"%s","categoryIds":["%s"],"price":19.99,"available":true,"premiumOnly":%s}
+                                """.formatted(PRODUCT_NAME, CATEGORY_ID, premiumOnly);
+        }
+
+        @Test
+        void shouldCreatePremiumOnlyProduct() throws Exception {
+                ArgumentCaptor<ProductCreateRequest> captor = ArgumentCaptor.forClass(ProductCreateRequest.class);
+                when(productService.createProduct(any(ProductCreateRequest.class), eq(SELLER_EMAIL)))
+                                .thenReturn(productWithPremiumOnly(true));
+
+                mockMvc.perform(post(PRODUCTS_API)
+                                .with(authentication(authenticationForSeller()))
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(requestWithPremiumOnly(true)))
+                                .andExpect(status().isCreated())
+                                .andExpect(jsonPath("$.premiumOnly").value(true));
+
+                verify(productService).createProduct(captor.capture(), eq(SELLER_EMAIL));
+                assertEquals(Boolean.TRUE, captor.getValue().getPremiumOnly());
+        }
+
+        @Test
+        void shouldRemovePremiumOnlyWhenUpdatingProduct() throws Exception {
+                ArgumentCaptor<ProductCreateRequest> captor = ArgumentCaptor.forClass(ProductCreateRequest.class);
+                when(productService.updateProduct(eq("product-1"), any(ProductCreateRequest.class), eq(SELLER_EMAIL)))
+                                .thenReturn(productWithPremiumOnly(false));
+
+                mockMvc.perform(put(PRODUCTS_API + "/product-1")
+                                .with(authentication(authenticationForSeller()))
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(requestWithPremiumOnly(false)))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.premiumOnly").value(false));
+
+                verify(productService).updateProduct(eq("product-1"), captor.capture(), eq(SELLER_EMAIL));
+                assertEquals(Boolean.FALSE, captor.getValue().getPremiumOnly());
         }
 
         private String validRequest() {
