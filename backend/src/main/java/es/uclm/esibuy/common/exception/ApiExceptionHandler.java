@@ -271,6 +271,21 @@ public class ApiExceptionHandler {
                                 .body(Map.of(MESSAGE, exception.getMessage()));
         }
 
+        @ExceptionHandler(OtpDeliveryException.class)
+        public ResponseEntity<Map<String, String>> handleOtpDelivery(
+                        OtpDeliveryException exception,
+                        HttpServletRequest request) {
+
+                String id = correlationId(request);
+
+                LOGGER.error("No se pudo enviar el código de verificación por correo. correlationId={}", id,
+                                exception.getCause());
+
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of(
+                                MESSAGE, exception.getMessage(),
+                                CORRELATION_ID, id));
+        }
+
         @ExceptionHandler(CompromisedPasswordException.class)
         public ResponseEntity<Map<String, String>> handleCompromisedPassword(
                         CompromisedPasswordException exception,
