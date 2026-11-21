@@ -12,11 +12,16 @@ import es.uclm.esibuy.categories.model.Category;
 import es.uclm.esibuy.categories.repository.CategoryRepository;
 import es.uclm.esibuy.common.exception.CategoryNotFoundException;
 import es.uclm.esibuy.common.exception.ProductNotFoundException;
+import es.uclm.esibuy.products.dto.CatalogPageResponse;
+import es.uclm.esibuy.products.dto.CatalogSearch;
 import es.uclm.esibuy.products.dto.ProductCreateRequest;
 import es.uclm.esibuy.products.dto.ProductResponse;
 import es.uclm.esibuy.products.dto.ProductSummaryResponse;
 import es.uclm.esibuy.products.model.Product;
+import es.uclm.esibuy.products.repository.ProductCatalogRepository;
+import es.uclm.esibuy.products.repository.ProductCatalogRepository.CatalogResult;
 import es.uclm.esibuy.products.repository.ProductRepository;
+import es.uclm.esibuy.users.model.SellerProfile;
 import es.uclm.esibuy.users.model.User;
 import es.uclm.esibuy.users.model.UserRole;
 import es.uclm.esibuy.users.repository.UserRepository;
@@ -35,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -69,13 +75,16 @@ class ProductServiceTest {
 
         @Mock
         private GridFsTemplate gridFsTemplate;
+        
+        @Mock
+        private ProductCatalogRepository productCatalogRepository;
 
         private ProductService productService;
 
         @BeforeEach
         void setUp() {
                 productService = new ProductService(productRepository, categoryRepository, userRepository,
-                                gridFsTemplate);
+                                gridFsTemplate, productCatalogRepository);
         }
 
         @Test
@@ -396,6 +405,50 @@ class ProductServiceTest {
                 when(categoryRepository.findAllById(List.of(CATEGORY_ID)))
                                 .thenReturn(List.of(new Category(CATEGORY_ID, CATEGORY_NAME_ELECTRONICS)));
         }
+
+        @Test
+        void returnsACatalogPageAndResolvesItsSellersInOneQuery() {
+                CatalogSearch search = new CatalogSearch(null, null, null, null, null, null, null, null, 1, 2);
+                when(productCatalogRepository.search(search)).thenReturn(new CatalogResult(
+                                List.of(catalogProduct("p3", "seller-1"), catalogProduct("p4", "seller-2")), 5));
+                when(productCatalogRepository.findMaxAvailablePrice()).thenReturn(new BigDecimal("200"));
+                List<User> sellers = List.of(seller("seller-1", "Tienda Uno"), seller("seller-2", null));
+                when(userRepository.findAllById(any())).thenReturn(sellers);
+
+                CatalogPageResponse page = productService.getPublicCatalog(search);
+
+                assertEquals(List.of("p3", "p4"), page.content().stream().map(ProductResponse::id).toList());
+                assertEquals(List.of("Tienda Uno", "Ana López"),
+                                page.content().stream().map(ProductResponse::sellerName).toList());
+                assertEquals(1, page.page());
+                assertEquals(2, page.size());
+                assertEquals(5, page.totalElements());
+                assertEquals(3, page.totalPages());
+                assertEquals(new BigDecimal("200"), page.maxPrice());
+                verify(userRepository).findAllById(any());
+                verify(userRepository, never()).findById(anyString());
+        }
+
+        private Product catalogProduct(String id, String sellerId) {
+                Product product = new Product(new ProductDetails(
+                                PRODUCT_NAME, List.of(CATEGORY_ID), 1, null,
+                                new BigDecimal(PRODUCT_PRICE), null, null, null, true, sellerId));
+                product.setId(id);
+                return product;
+        }
+
+        private User seller(String id, String businessName) {
+                User seller = org.mockito.Mockito.mock(User.class);
+                when(seller.getId()).thenReturn(id);
+                if (businessName != null) {
+                        when(seller.getSellerProfile()).thenReturn(new SellerProfile(businessName, CATEGORY_ID));
+                } else {
+                        when(seller.getFirstName()).thenReturn("Ana");
+                        when(seller.getLastName()).thenReturn("López");
+                }
+                return seller;
+        }
+
 
         private Product ownedProduct(boolean premiumOnly) {
                 Product product = new Product(new ProductDetails(
