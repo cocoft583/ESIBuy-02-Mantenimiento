@@ -148,6 +148,7 @@ public class SecurityConfig {
                                                         .requestMatchers("/api/catalog/**").hasRole(ROLE_CLIENT)
                                                         .requestMatchers(API_PRODUCT_PREFIX).hasRole(ROLE_SELLER)
                                                         .requestMatchers("/api/wishlist/**").hasRole(ROLE_CLIENT)
+                                                        .requestMatchers("/api/customer/alerts/**").hasRole(ROLE_CLIENT)
                                                         .requestMatchers(HttpMethod.GET, "/api/users/me/profile")
                                                         .hasAnyRole(ROLE_CLIENT, ROLE_SELLER, ROLE_ADMIN)
                                                         .requestMatchers(HttpMethod.DELETE, "/api/users/me")
