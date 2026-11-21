@@ -31,37 +31,13 @@ export class Home implements OnInit {
   });
 
   private readonly catalogProducts = signal<ProductItem[]>([]);
-  readonly products = computed(() => {
-    let result = [...this.catalogProducts()];
-
-    if (this.onlyOffers()) {
-      result = result.filter((product) => this.hasAnyDiscount(product));
-    }
-
-    switch (this.sortOrder()) {
-      case 'rating-desc':
-        result.sort((a, b) => (b.rating ?? -1) - (a.rating ?? -1));
-        break;
-      case 'rating-asc':
-        result.sort((a, b) => (a.rating ?? Number.MAX_VALUE) - (b.rating ?? Number.MAX_VALUE));
-        break;
-      case 'price-asc':
-        result.sort((a, b) => this.getDisplayPrice(a) - this.getDisplayPrice(b));
-        break;
-      case 'price-desc':
-        result.sort((a, b) => this.getDisplayPrice(b) - this.getDisplayPrice(a));
-        break;
-    }
-
-    return result;
-  });
+  // El servidor devuelve ya filtrada, ordenada y paginada la página que se ve
+  readonly products = this.catalogProducts.asReadonly();
+  readonly totalElements = signal(0);
+  private readonly totalPages = signal(0);
   readonly pageIndex = signal(0);
   readonly pageSize = 12;
-  readonly pageCount = computed(() => Math.max(1, Math.ceil(this.products().length / this.pageSize)));
-  readonly visibleProducts = computed(() => {
-    const start = this.pageIndex() * this.pageSize;
-    return this.products().slice(start, start + this.pageSize);
-  });
+  readonly pageCount = computed(() => Math.max(1, this.totalPages()));
   categories = signal<Category[]>([]);
   categoriesLoading = signal(true);
   categoryError = signal(false);
@@ -164,10 +140,15 @@ export class Home implements OnInit {
       maxPrice: this.maxPrice() ?? undefined,
       minRating: this.minRating() ?? undefined,
       inStock: this.onlyInStock() || undefined,
+      onlyOffers: this.onlyOffers() || undefined,
+      sort: this.sortOrder(),
+      page: this.pageIndex(),
+      size: this.pageSize,
     }).subscribe({
-      next: (items) => {
-        this.catalogProducts.set(items);
-        this.pageIndex.set(0);
+      next: (page) => {
+        this.catalogProducts.set(page.content);
+        this.totalElements.set(page.totalElements);
+        this.totalPages.set(page.totalPages);
         this.loading.set(false);
       },
       error: () => {
@@ -312,11 +293,19 @@ export class Home implements OnInit {
   }
 
   previousPage(): void {
-    this.pageIndex.update((page) => Math.max(0, page - 1));
+    if (this.pageIndex() === 0) {
+      return;
+    }
+    this.pageIndex.update((page) => page - 1);
+    this.loadProducts();
   }
 
   nextPage(): void {
-    this.pageIndex.update((page) => Math.min(this.pageCount() - 1, page + 1));
+    if (this.pageIndex() >= this.pageCount() - 1) {
+      return;
+    }
+    this.pageIndex.update((page) => page + 1);
+    this.loadProducts();
   }
 
   readonly imageErrors = signal<Record<string, boolean>>({});

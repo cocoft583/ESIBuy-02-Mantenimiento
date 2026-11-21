@@ -50,6 +50,19 @@ export interface CatalogFilterParams {
   maxPrice?: number;
   minRating?: number;
   inStock?: boolean;
+  onlyOffers?: boolean;
+  sort?: string;
+  page?: number;
+  size?: number;
+}
+
+export interface CatalogPage {
+  content: ProductItem[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  maxPrice: number;
 }
 
 export interface ProductDetails {
@@ -126,10 +139,10 @@ export class ProductsService {
     );
   }
 
-  getPublicCatalog(filters?: CatalogFilterParams): Observable<ProductItem[]> {
+  getPublicCatalog(filters?: CatalogFilterParams): Observable<CatalogPage> {
     const params = this.buildCatalogParams(filters);
-    return this.http.get<ProductItem[]>('/api/products', { params }).pipe(
-      map((products) => products.map((p) => this.mapProduct(p)))
+    return this.http.get<CatalogPage>('/api/products', { params }).pipe(
+      map((page) => ({ ...page, content: page.content.map((p) => this.mapProduct(p)) }))
     );
   }
 
@@ -168,6 +181,17 @@ export class ProductsService {
     if (filters.inStock !== undefined && filters.inStock !== null) {
       params = params.set('inStock', filters.inStock.toString());
     }
+
+    if (filters.onlyOffers) {
+      params = params.set('onlyOffers', 'true');
+    }
+
+    if (filters.sort && filters.sort !== 'recommended') {
+      params = params.set('sort', filters.sort);
+    }
+
+    params = this.setNumericParam(params, 'page', filters.page);
+    params = this.setNumericParam(params, 'size', filters.size);
 
     return params;
   }
