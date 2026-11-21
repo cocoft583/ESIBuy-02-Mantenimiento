@@ -2,28 +2,29 @@ package es.uclm.esibuy.products.service;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import com.mongodb.client.gridfs.model.GridFSFile;
+import java.math.BigDecimal;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
+
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.gridfs.GridFsResource;
 import org.springframework.data.mongodb.gridfs.GridFsTemplate;
-import java.math.BigDecimal;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
-import javax.imageio.ImageIO;
-import javax.imageio.ImageReader;
-import javax.imageio.stream.ImageInputStream;
-import java.util.Arrays;
-import es.uclm.esibuy.products.model.ProductDetails;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.stereotype.Service;
+
+import com.mongodb.client.gridfs.model.GridFSFile;
 
 import es.uclm.esibuy.categories.model.Category;
 import es.uclm.esibuy.categories.repository.CategoryRepository;
@@ -35,6 +36,7 @@ import es.uclm.esibuy.products.dto.ProductResponse;
 import es.uclm.esibuy.products.dto.ProductSummaryDTO;
 import es.uclm.esibuy.products.dto.ProductSummaryResponse;
 import es.uclm.esibuy.products.model.Product;
+import es.uclm.esibuy.products.model.ProductDetails;
 import es.uclm.esibuy.products.repository.ProductRepository;
 import es.uclm.esibuy.users.model.User;
 import es.uclm.esibuy.users.model.UserRole;
@@ -87,6 +89,7 @@ private static final String NO_PERMISSIONS_MESSAGE = "No tiene permisos para mod
                 null,
                 Boolean.TRUE.equals(request.getAvailable()),
                 seller.getId()));
+        product.setPremiumOnly(Boolean.TRUE.equals(request.getPremiumOnly()));
 
         return productRepository.save(product);
     }
@@ -115,6 +118,7 @@ private static final String NO_PERMISSIONS_MESSAGE = "No tiene permisos para mod
                 null,
                 Boolean.TRUE.equals(request.getAvailable()),
                 seller.getId()));
+        product.setPremiumOnly(Boolean.TRUE.equals(request.getPremiumOnly()));
 
         // Preparar el ID antes del guardado para no guardar dos veces.
         String productId = new ObjectId().toHexString();
@@ -178,6 +182,7 @@ private static final String NO_PERMISSIONS_MESSAGE = "No tiene permisos para mod
         product.setPrice(request.getPrice());
         product.setDiscount(request.getDiscount());
         product.setPremiumDiscount(request.getPremiumDiscount());
+        product.setPremiumOnly(Boolean.TRUE.equals(request.getPremiumOnly()));
         product.setAvailable(Boolean.TRUE.equals(request.getAvailable()));
         Product saved;
         try {
@@ -499,6 +504,7 @@ private static final String NO_PERMISSIONS_MESSAGE = "No tiene permisos para mod
         product.setPrice(request.getPrice());
         product.setDiscount(request.getDiscount());
         product.setPremiumDiscount(request.getPremiumDiscount());
+        product.setPremiumOnly(Boolean.TRUE.equals(request.getPremiumOnly()));
         product.setAvailable(Boolean.TRUE.equals(request.getAvailable()));
 
         return productRepository.save(product);
