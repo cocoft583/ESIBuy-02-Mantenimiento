@@ -5,7 +5,8 @@ import { ProductsService, ProductItem, Category } from '../../../core/services/p
 import { WishlistService } from '../../../core/services/wishlist.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { CartService } from '../../../core/services/cart.service';
-import { insufficientStockMessage } from '../../../core/utils/cart-error-message';
+import { PREMIUM_ONLY_MESSAGE, cartRejectionMessage } from '../../../core/utils/cart-error-message';
+import { isBlockedForCustomer } from '../../../core/utils/premium-only';
 import { AuthService } from '../../../core/services/auth.service';
 import { AppSidebarComponent } from '../../../shared/app-sidebar/app-sidebar';
 
@@ -32,11 +33,20 @@ export class ClientCatalog implements OnInit {
   );
 
 
+  isBlockedForCustomer(product: ProductItem): boolean {
+    return isBlockedForCustomer(product);
+  }
+
   addToCart(product: ProductItem, event: Event): void {
     event.stopPropagation();
     event.preventDefault();
 
     if (this.isAdmin()) {
+      return;
+    }
+
+    if (isBlockedForCustomer(product)) {
+      this.toastService.show(PREMIUM_ONLY_MESSAGE, 'info');
       return;
     }
 
@@ -52,7 +62,7 @@ export class ClientCatalog implements OnInit {
         this.toastService.show('Producto añadido al carrito', 'success');
       },
       error: (error: unknown) => {
-        this.toastService.show(insufficientStockMessage(error) ?? 'Error al añadir producto al carrito', 'error');
+        this.toastService.show(cartRejectionMessage(error) ?? 'Error al añadir producto al carrito', 'error');
       },
     }).add(() => this.cartAdding.update((states) => ({ ...states, [product.id]: false })));
   }

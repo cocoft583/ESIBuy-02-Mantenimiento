@@ -201,6 +201,42 @@ describe('ProductDetail', () => {
     expect(buyBtn?.disabled).toBe(true);
   });
 
+  // HU16: el detalle de un exclusivo se enseña a todos; a quien no es Premium, con la compra bloqueada.
+
+  it('shows an exclusive product to a standard client with a badge, blocked purchase and a link to Premium', () => {
+    component.product.set({ ...mockProduct, premiumOnly: true, purchasable: false });
+    fixture.detectChanges();
+
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('.premium-only-badge')?.textContent).toContain('Exclusivo Premium');
+    const blocked = el.querySelector('.premium-only-blocked') as HTMLElement;
+    expect(blocked).not.toBeNull();
+    expect(blocked.textContent).toContain('exclusivo para clientes Premium');
+    expect(blocked.querySelector('a.premium-upsell-link')?.getAttribute('href')).toBe('/client/profile');
+    expect((blocked.querySelector('.primary-buy-btn') as HTMLButtonElement).disabled).toBe(true);
+    expect(el.querySelector('#detail-product-quantity')).toBeNull();
+
+    component.addToCart();
+    expect(cartServiceMock.addItem).not.toHaveBeenCalled();
+    expect(toastServiceMock.show).toHaveBeenCalledWith('Este producto es exclusivo para clientes Premium', 'info');
+  });
+
+  it('lets a Premium client buy an exclusive product and still shows the badge', () => {
+    component.product.set({ ...mockProduct, premiumOnly: true, purchasable: true });
+    fixture.detectChanges();
+
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('.premium-only-badge')).not.toBeNull();
+    expect(el.querySelector('.premium-only-blocked')).toBeNull();
+
+    component.addToCart();
+    expect(cartServiceMock.addItem).toHaveBeenCalledWith('p-1', 1);
+  });
+
+  it('does not show the exclusive badge on regular products', () => {
+    expect(fixture.nativeElement.querySelector('.premium-only-badge')).toBeNull();
+  });
+
   it('should display admin read-only pill and hide purchase options when logged in as admin and hide interactive action buttons', () => {
     currentUserSignal.set({
       id: 'admin-1',
