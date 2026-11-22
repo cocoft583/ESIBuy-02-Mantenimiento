@@ -34,6 +34,10 @@ public class PriceDropAlertListener {
 
     @EventListener
     public void onProductChanged(ProductChangedEvent event) {
+        AlertFailureGuard.run("bajada de precio", event.after().id(), () -> notifyPriceDrop(event));
+    }
+
+    private void notifyPriceDrop(ProductChangedEvent event) {
         ProductSnapshot before = event.before();
         ProductSnapshot after = event.after();
 

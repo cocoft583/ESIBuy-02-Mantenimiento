@@ -28,6 +28,10 @@ public class AvailabilityAlertListener {
 
     @EventListener
     public void onProductChanged(ProductChangedEvent event) {
+        AlertFailureGuard.run("disponibilidad", event.after().id(), () -> notifyAvailability(event));
+    }
+
+    private void notifyAvailability(ProductChangedEvent event) {
         ProductSnapshot before = event.before();
         ProductSnapshot after = event.after();
 
