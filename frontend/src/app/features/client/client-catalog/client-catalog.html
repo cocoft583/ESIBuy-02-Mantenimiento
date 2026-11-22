@@ -240,6 +240,9 @@
 
             <div class="product-card-body">
               <div class="product-card-tags">
+                @if (product.premiumOnly) {
+                <span class="premium-only-badge">★ Exclusivo Premium</span>
+                }
                 @for (catId of product.categoryIds; track catId) {
                 <span class="tag-badge">{{ categoryName(catId) }}</span>
                 }
@@ -287,11 +290,20 @@
 
                 @if (!isAdmin()) {
                 <div class="card-btn-group">
+                  @if (isBlockedForCustomer(product)) {
+                  <button type="button" class="add-to-cart-action-btn" disabled aria-disabled="true">
+                    Solo Premium
+                  </button>
+                  <a class="premium-upsell-link" routerLink="/client/profile" (click)="$event.stopPropagation()">
+                    Hazte Premium
+                  </a>
+                  } @else {
                   <button type="button" class="add-to-cart-action-btn"
                     [disabled]="getRemainingStock(product) === 0 || cartAdding()[product.id]"
                     (click)="addToCart(product, $event)">
                     {{ cartAdding()[product.id] ? 'Añadiendo...' : 'Añadir al carrito' }}
                   </button>
+                  }
                 </div>
                 }
               </div>

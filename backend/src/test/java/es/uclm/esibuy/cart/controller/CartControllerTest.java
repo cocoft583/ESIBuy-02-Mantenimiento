@@ -8,6 +8,7 @@ import es.uclm.esibuy.cart.dto.CartItemDTO;
 import es.uclm.esibuy.cart.service.CartService;
 import es.uclm.esibuy.common.exception.ApiExceptionHandler;
 import es.uclm.esibuy.common.exception.ProductNotFoundException;
+import es.uclm.esibuy.common.exception.ProductoExclusivoPremiumException;
 import es.uclm.esibuy.common.exception.ProductoNoDisponibleException;
 import es.uclm.esibuy.common.exception.StockInsuficienteException;
 import es.uclm.esibuy.security.AuthenticatedUserPrincipal;
@@ -168,6 +169,23 @@ class CartControllerTest {
                                 .andExpect(jsonPath("$.code").value("INSUFFICIENT_STOCK"))
                                 .andExpect(jsonPath("$.message")
                                                 .value("No hay stock suficiente para la cantidad solicitada"));
+        }
+
+        @Test
+        @DisplayName("HU16: un cliente Estándar recibe 403 PREMIUM_ONLY al añadir un exclusivo")
+        void shouldReturnForbiddenWithPremiumOnlyCodeWhenStandardClientAddsExclusiveProduct() throws Exception {
+                when(cartService.addItem(eq(CUSTOMER_ID), any()))
+                                .thenThrow(new ProductoExclusivoPremiumException());
+
+                mockMvc.perform(post(API + "/items")
+                                .with(authentication(authenticationFor(UserRole.CLIENT)))
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(VALID_BODY))
+                                .andExpect(status().isForbidden())
+                                .andExpect(jsonPath("$.code").value("PREMIUM_ONLY"))
+                                .andExpect(jsonPath("$.message")
+                                                .value("Este producto es exclusivo para clientes Premium"));
         }
 
         @Test

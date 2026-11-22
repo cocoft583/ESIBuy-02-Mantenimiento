@@ -3,7 +3,7 @@ import { Component, HostListener, OnDestroy, OnInit, inject, signal } from '@ang
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { CartService } from '../../../core/services/cart.service';
-import { insufficientStockMessage } from '../../../core/utils/cart-error-message';
+import { cartRejectionMessage } from '../../../core/utils/cart-error-message';
 import {
   CustomerOrder,
   CustomerOrderFulfillmentStatus,
@@ -265,7 +265,7 @@ export class ClientOrderDetail implements OnInit, OnDestroy {
       next: () => this.addingProductId.set(null),
       error: (error: unknown) => {
         this.actionError.set(
-          insufficientStockMessage(error)
+          cartRejectionMessage(error)
             ?? 'No se pudo añadir el producto al carrito. Puede que ya no esté disponible.',
         );
       },
