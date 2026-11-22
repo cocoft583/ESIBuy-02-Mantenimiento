@@ -17,6 +17,7 @@ import es.uclm.esibuy.common.exception.PedidoNotFoundException;
 import es.uclm.esibuy.common.exception.RecursoCheckoutNoEncontradoException;
 import es.uclm.esibuy.common.exception.StockInsuficienteException;
 import es.uclm.esibuy.orders.dto.CheckoutSummaryDTO;
+import es.uclm.esibuy.common.exception.ProductoExclusivoPremiumException;
 import es.uclm.esibuy.orders.dto.CreateOrderDTO;
 import es.uclm.esibuy.orders.dto.CustomerOrderDTO;
 import es.uclm.esibuy.orders.dto.OrderConfirmationDTO;
@@ -847,6 +848,44 @@ class OrderServiceTest {
                                                 new CreateOrderDTO("direccion-ajena", "pago-1")));
 
                 verify(paymentGateway, never()).charge(any(), any());
+        }
+
+        // HU16: no se puede confirmar un pedido con un exclusivo si el cliente no es Premium
+        // (por ejemplo, si dejó de serlo con el producto ya en el carrito).
+
+        private Product premiumOnlyProductWithStock() {
+                Product product = productWithStock(5);
+                product.setPremiumOnly(true);
+                return product;
+        }
+
+        @Test
+        @DisplayName("HU16: un cliente Estándar no puede confirmar un pedido con un exclusivo; no se cobra ni se guarda")
+        void shouldRejectOrderWithPremiumOnlyProductForStandardCustomer() {
+                prepareCartAndProduct(premiumOnlyProductWithStock());
+
+                assertThrows(
+                                ProductoExclusivoPremiumException.class,
+                                () -> orderService.createOrder(
+                                                CUSTOMER_ID,
+                                                new CreateOrderDTO("direccion-1", "pago-1")));
+
+                verify(paymentGateway, never()).charge(any(), any());
+                verify(orderRepository, never()).save(any(Order.class));
+                verify(cartRepository, never()).save(cart);
+                assertEquals(1, cart.getItems().size());
+        }
+
+        @Test
+        @DisplayName("HU16: un cliente Premium sí puede confirmar un pedido con un exclusivo")
+        void shouldAllowPremiumCustomerToOrderPremiumOnlyProduct() {
+                makeTheCustomerPremium();
+
+                Order order = placeOrderWith(premiumOnlyProductWithStock());
+
+                assertEquals(1, order.getItems().size());
+                assertEquals(PRODUCT_ID, order.getItems().get(0).productId());
+                verify(paymentGateway).charge(any(), any());
         }
 
         private void enableStockReservation() {
