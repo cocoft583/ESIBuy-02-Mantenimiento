@@ -5,6 +5,7 @@ import { Router } from '@angular/router';
 import { vi } from 'vitest';
 import { authInterceptor } from './auth.interceptor';
 import { AuthService } from '../services/auth.service';
+import { environment } from '../../../environments/environment';
 
 describe('authInterceptor', () => {
   let http: HttpClient;
@@ -77,6 +78,37 @@ describe('authInterceptor', () => {
     expect(clearCurrentUser).toHaveBeenCalledOnce();
     expect(navigate).toHaveBeenCalledWith(['/'], {
       queryParams: { revoked: 'true' },
+    });
+  });
+
+  describe('URL de la API', () => {
+    const originalApiUrl = environment.apiUrl;
+
+    afterEach(() => {
+      environment.apiUrl = originalApiUrl;
+      localStorage.removeItem('esibuy_api_url');
+    });
+
+    it('sends API requests to the server fixed at build time even if localStorage has another one', () => {
+      environment.apiUrl = 'https://api.esibuy.test';
+      localStorage.setItem('esibuy_api_url', 'https://attacker.example');
+
+      http.post('/api/users/login', { email: 'ana@example.com' }).subscribe();
+
+      const request = httpTesting.expectOne('https://api.esibuy.test/api/users/login');
+      expect(request.request.withCredentials).toBe(true);
+      request.flush({});
+      httpTesting.expectNone((req) => req.url.startsWith('https://attacker.example'));
+    });
+
+    it('keeps API requests relative when the build has no API URL, even if localStorage has one', () => {
+      environment.apiUrl = '';
+      localStorage.setItem('esibuy_api_url', 'https://attacker.example');
+
+      http.get('/api/products').subscribe();
+
+      httpTesting.expectOne('/api/products').flush([]);
+      httpTesting.expectNone((req) => req.url.startsWith('https://attacker.example'));
     });
   });
 });

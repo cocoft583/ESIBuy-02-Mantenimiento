@@ -1,4 +1,4 @@
-import { environment } from '../../../environments/environment';
+import { apiBaseUrl } from './api-url';
 
 export function resolveImageUrl(url: string | null | undefined): string | null {
   if (!url) {
@@ -12,13 +12,10 @@ export function resolveImageUrl(url: string | null | undefined): string | null {
   ) {
     return url;
   }
-  const baseApi =
-    (typeof window !== 'undefined' && window.localStorage?.getItem('esibuy_api_url')) ||
-    environment.apiUrl;
+  const baseApi = apiBaseUrl();
   if (!baseApi) {
     return url;
   }
-  const cleanBase = baseApi.endsWith('/') ? baseApi.slice(0, -1) : baseApi;
   const cleanUrl = url.startsWith('/') ? url : `/${url}`;
-  return `${cleanBase}${cleanUrl}`;
+  return `${baseApi}${cleanUrl}`;
 }
