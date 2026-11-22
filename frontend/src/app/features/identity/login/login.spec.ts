@@ -225,4 +225,60 @@ describe('Login', () => {
 
     expect(fixture.componentInstance.successMessage).toBe('Tu cuenta se ha eliminado correctamente.');
   });
+
+  describe('cuenta pendiente de aprobación (HU17)', () => {
+    afterEach(() => history.replaceState(null, ''));
+
+    it('takes a pending account to the waiting page instead of showing an error', () => {
+      login.mockReturnValue(throwError(() => new HttpErrorResponse({
+        status: 403,
+        error: { message: 'Tu cuenta está pendiente de aprobación por un administrador', code: 'ACCOUNT_PENDING' },
+      })));
+      component.loginForm.patchValue({ email: 'ana@example.com', password: 'Password123!' });
+
+      component.onSubmit();
+
+      expect(navigate).toHaveBeenCalledWith(['/cuenta-pendiente'], {
+        state: {
+          email: 'ana@example.com',
+          message: 'Tu cuenta está pendiente de aprobación por un administrador',
+        },
+      });
+      expect(component.serverError).toBeNull();
+    });
+
+    it('keeps the usual message for wrong credentials, without telling if the account exists', () => {
+      login.mockReturnValue(throwError(() => new HttpErrorResponse({
+        status: 401,
+        error: { message: 'Credenciales incorrectas' },
+      })));
+      component.loginForm.patchValue({ email: 'ana@example.com', password: 'mala' });
+
+      component.onSubmit();
+
+      expect(navigate).not.toHaveBeenCalled();
+      expect(component.serverError).toBe('Credenciales incorrectas');
+    });
+
+    it('keeps showing other 403 errors on the login', () => {
+      login.mockReturnValue(throwError(() => new HttpErrorResponse({
+        status: 403,
+        error: { message: 'Cuenta bloqueada' },
+      })));
+      component.loginForm.patchValue({ email: 'ana@example.com', password: 'Password123!' });
+
+      component.onSubmit();
+
+      expect(navigate).not.toHaveBeenCalled();
+      expect(component.serverError).toBe('Cuenta bloqueada');
+    });
+
+    it('fills in the email when the user comes back from the waiting page', () => {
+      history.replaceState({ loginEmail: 'ana@example.com' }, '');
+
+      fixture = TestBed.createComponent(Login);
+
+      expect(fixture.componentInstance.loginForm.get('email')?.value).toBe('ana@example.com');
+    });
+  });
 });
