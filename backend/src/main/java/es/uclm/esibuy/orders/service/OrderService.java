@@ -23,6 +23,7 @@ import es.uclm.esibuy.cart.repository.CartRepository;
 import es.uclm.esibuy.configuration.model.GeneralConfiguration;
 import es.uclm.esibuy.configuration.service.GeneralConfigurationService;
 import es.uclm.esibuy.common.exception.PagoFallidoException;
+import es.uclm.esibuy.common.exception.PedidoNoCompletadoException;
 import es.uclm.esibuy.common.exception.PedidoNotFoundException;
 import es.uclm.esibuy.common.exception.ProductNotFoundException;
 import es.uclm.esibuy.common.exception.ProductoNoDisponibleException;
@@ -199,31 +200,33 @@ public class OrderService {
         reserveStock(items);
 
         OrderPaymentMethod orderPaymentMethod = OrderPaymentMethod.from(paymentMethod);
-        boolean paymentAccepted;
 
-        try {
-            paymentAccepted = paymentGateway.charge(orderPaymentMethod, totalPrice);
-        } catch (RuntimeException exception) {
-            releaseStock(items, exception);
-            throw exception;
-        }
-
-        if (!paymentAccepted) {
-            PagoFallidoException paymentException = new PagoFallidoException();
-            releaseStock(items, paymentException);
-            throw paymentException;
-        }
-
-        Order order = new Order(
+        Order pendingOrder = savePendingOrder(new Order(
                 customerId,
                 items,
                 totalPrice,
                 OrderShippingAddress.from(shippingAddress),
                 orderPaymentMethod,
                 OrderStatus.PENDIENTE,
-                OrderPaymentStatus.PAGADO);
+                OrderPaymentStatus.PENDIENTE), items);
 
-        Order savedOrder = orderRepository.save(order);
+        boolean paymentAccepted;
+
+        try {
+            paymentAccepted = paymentGateway.charge(orderPaymentMethod, totalPrice);
+        } catch (RuntimeException exception) {
+            discardPendingOrder(pendingOrder, items, exception);
+            throw exception;
+        }
+
+        if (!paymentAccepted) {
+            PagoFallidoException paymentException = new PagoFallidoException();
+            discardPendingOrder(pendingOrder, items, paymentException);
+            throw paymentException;
+        }
+
+        pendingOrder.markAsPaid();
+        Order savedOrder = savePaidOrder(pendingOrder, items, orderPaymentMethod, totalPrice);
 
         for (OrderItem item : items) {
             cart.removeItem(item.productId());
@@ -237,6 +240,41 @@ public class OrderService {
                 savedOrder.getStatus(),
                 savedOrder.getCreatedAt(),
                 savedOrder.getPaymentStatus());
+    }
+
+    private Order savePendingOrder(Order order, List<OrderItem> items) {
+        try {
+            return orderRepository.save(order);
+        } catch (RuntimeException exception) {
+            PedidoNoCompletadoException failure = new PedidoNoCompletadoException(exception);
+            releaseStock(items, failure);
+            throw failure;
+        }
+    }
+
+    private Order savePaidOrder(
+            Order order,
+            List<OrderItem> items,
+            OrderPaymentMethod paymentMethod,
+            BigDecimal amount) {
+        try {
+            return orderRepository.save(order);
+        } catch (RuntimeException exception) {
+            PedidoNoCompletadoException failure = new PedidoNoCompletadoException(exception);
+            paymentGateway.refund(paymentMethod, amount);
+            discardPendingOrder(order, items, failure);
+            throw failure;
+        }
+    }
+
+    private void discardPendingOrder(Order pendingOrder, List<OrderItem> items, RuntimeException cause) {
+        try {
+            orderRepository.delete(pendingOrder);
+        } catch (RuntimeException exception) {
+            cause.addSuppressed(exception);
+        }
+
+        releaseStock(items, cause);
     }
 
     private OrderPricing calculatePricing(
