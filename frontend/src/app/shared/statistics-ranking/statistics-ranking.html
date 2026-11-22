@@ -5,6 +5,9 @@
       @if (description(); as text) {
       <p class="ranking-description">{{ text }}</p>
       }
+      @if (referenceNote(); as note) {
+      <p class="reference-note"><span class="reference-swatch" aria-hidden="true"></span>{{ note }}</p>
+      }
     </div>
 
     @if (rows().length > 0) {
@@ -79,6 +82,11 @@
             @for (metric of metrics(); track metric.key) {
             <td class="value-column" [class.is-selected]="metric.key === selectedMetric()?.key">
               <span class="value-text">{{ format(row.values[metric.key] ?? 0, metric) }}</span>
+              @if (metric.key === selectedMetric()?.key && deltas()[index]; as delta) {
+              <span class="reference-delta" [class.is-above]="delta.direction === 'above'"
+                [class.is-below]="delta.direction === 'below'"
+                [attr.title]="'Diferencia con ' + activeReference()?.label?.toLowerCase()">{{ delta.text }}</span>
+              }
               @if (metric.key === selectedMetric()?.key) {
               <span class="share-track" aria-hidden="true">
                 <span class="share-fill" [style.width]="shares()[index] + '%'"></span>

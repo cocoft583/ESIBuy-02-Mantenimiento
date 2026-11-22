@@ -33,6 +33,18 @@ export function formatRankingValue(value: number, format: RankingValueFormat): s
   return FORMATTERS[format].format(value);
 }
 
+const DELTA_FORMATTER = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const RATING_SCALE_MAX = 5;
+
+/** Diferencia con signo: «+0,35», «−0,40» o «0,00». */
+function formatDelta(delta: number): string {
+  const rounded = Math.round(delta * 100) / 100;
+  if (rounded === 0) {
+    return DELTA_FORMATTER.format(0);
+  }
+  return `${rounded > 0 ? '+' : '−'}${DELTA_FORMATTER.format(Math.abs(rounded))}`;
+}
+
 function prefersReducedMotion(): boolean {
   return typeof window !== 'undefined'
     && window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
@@ -90,6 +102,30 @@ export class StatisticsRanking {
     return values.map((value) => (max > 0 ? Math.round((value / max) * 1000) / 10 : 0));
   });
 
+  /** La referencia solo tiene sentido con la métrica que mide lo mismo (una valoración). */
+  readonly activeReference = computed<RankingReference | null>(() => {
+    const reference = this.reference();
+    return reference && this.selectedMetric()?.format === 'rating' ? reference : null;
+  });
+
+  readonly referenceNote = computed(() => {
+    const reference = this.activeReference();
+    return reference ? `${reference.label}: ${formatRankingValue(reference.value, 'rating')}` : null;
+  });
+
+  /** Distancia de cada fila a la referencia, para la tabla. */
+  readonly deltas = computed(() => {
+    const reference = this.activeReference();
+    const key = this.selectedMetric()?.key ?? '';
+    return this.rows().map((row) => {
+      if (!reference) {
+        return null;
+      }
+      const delta = Math.round(((row.values[key] ?? 0) - reference.value) * 100) / 100;
+      return { text: formatDelta(delta), direction: delta > 0 ? 'above' : delta < 0 ? 'below' : 'equal' };
+    });
+  });
+
   readonly chartSummary = computed(() => {
     const metric = this.selectedMetric();
     if (!metric) {
@@ -114,6 +150,9 @@ export class StatisticsRanking {
       metricLabel: metric.label,
       formatValue: (value: number) => formatRankingValue(value, metric.format),
       animate: !prefersReducedMotion(),
+      reference: this.activeReference() ?? undefined,
+      // Las valoraciones van de 0 a 5: con la escala fija, las barras se comparan de verdad
+      scaleMax: metric.format === 'rating' ? RATING_SCALE_MAX : undefined,
     };
   });
 

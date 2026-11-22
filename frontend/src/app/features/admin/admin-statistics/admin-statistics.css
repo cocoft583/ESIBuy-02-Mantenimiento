@@ -121,7 +121,64 @@
   animation: spin .9s linear infinite;
 }
 
-/* Apartado de ventas */
+/* Pestañas: ventas y valoraciones por separado */
+.statistics-tabs {
+  display: inline-flex;
+  gap: 4px;
+  margin: 0 0 22px;
+  padding: 4px;
+  border: 1px solid #d2e0e9;
+  border-radius: 13px;
+  background: #f2f7f9;
+}
+
+.statistics-tabs [role="tab"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #496477;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 720;
+  cursor: pointer;
+  transition: background .22s ease, color .22s ease, box-shadow .22s ease;
+}
+
+.statistics-tabs [role="tab"]:hover:not(.is-active) {
+  color: #117761;
+}
+
+.statistics-tabs [role="tab"].is-active {
+  background: #102c40;
+  color: #fff;
+  box-shadow: 0 6px 14px rgb(16 44 64 / 18%);
+}
+
+.statistics-tabs [role="tab"]:focus-visible {
+  outline: 3px solid #42d6b2;
+  outline-offset: 2px;
+}
+
+.statistics-tabs svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.statistics-section {
+  animation: panel-in .4s cubic-bezier(.2, .8, .2, 1) both;
+}
+
+/* Apartados */
 .section-heading {
   display: flex;
   align-items: center;
@@ -138,6 +195,11 @@
   border-radius: 12px;
   background: linear-gradient(135deg, #dff8f0, #c7efe3);
   color: #117761;
+}
+
+.section-icon--ratings {
+  background: linear-gradient(135deg, #fff3d6, #ffe3a3);
+  color: #b07a12;
 }
 
 .section-icon svg,
@@ -244,6 +306,23 @@
   font-size: 12px;
 }
 
+.kpi-star {
+  margin-left: 4px;
+  color: #f2b23a;
+  font-size: .8em;
+}
+
+.kpi-link {
+  color: #117761;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.kpi-link:hover {
+  color: #0b5a49;
+}
+
 .kpi-card.is-highlight .kpi-label {
   color: #70e5c9;
 }
@@ -348,6 +427,13 @@
   line-height: 1.6;
 }
 
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
 @keyframes card-in {
   from {
     opacity: 0;
@@ -402,6 +488,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .statistics-section,
   .kpi-card,
   .kpi-card::after,
   .loader,

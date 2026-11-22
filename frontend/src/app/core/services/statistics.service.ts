@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { Observable, map, of } from 'rxjs';
+import { Observable, map } from 'rxjs';
 
 /** Una fila del ranking de ventas (GET /api/admin/statistics/sales). */
 export interface ProductSales {
@@ -38,6 +38,13 @@ export interface RatingStatistics {
   minimumReviews: number;
 }
 
+type RatingStatisticsResponse = {
+  topProducts?: (Omit<ProductRating, 'sellerId' | 'sellerName'> & { sellerId?: string | null; sellerName?: string | null })[];
+  topSellers?: (Omit<SellerRating, 'sellerName'> & { sellerName?: string | null })[];
+  platformAverage?: number | null;
+  minimumReviews: number;
+};
+
 type ProductSalesResponse = Omit<ProductSales, 'sellerId' | 'sellerName' | 'revenue'> & {
   sellerId?: string | null;
   sellerName?: string | null;
@@ -63,7 +70,30 @@ export class StatisticsService {
       }))));
   }
 
+  /**
+   * Los 10 productos mejor valorados (con el mínimo de valoraciones de la configuración),
+   * los 10 vendedores con mejor media y la media de la plataforma.
+   */
   getRatings(): Observable<RatingStatistics> {
-    return of({ topProducts: [], topSellers: [], platformAverage: null, minimumReviews: 0 });
+    return this.http
+      .get<RatingStatisticsResponse>('/api/admin/statistics/ratings', { withCredentials: true })
+      .pipe(map((response) => ({
+        topProducts: (response.topProducts ?? []).map((product) => ({
+          productId: product.productId,
+          productName: product.productName,
+          sellerId: product.sellerId ?? null,
+          sellerName: product.sellerName ?? null,
+          rating: Number(product.rating),
+          reviewCount: Number(product.reviewCount),
+        })),
+        topSellers: (response.topSellers ?? []).map((seller) => ({
+          sellerId: seller.sellerId,
+          sellerName: seller.sellerName ?? null,
+          averageRating: Number(seller.averageRating),
+          ratedProducts: Number(seller.ratedProducts),
+        })),
+        platformAverage: response.platformAverage ?? null,
+        minimumReviews: Number(response.minimumReviews),
+      })));
   }
 }
