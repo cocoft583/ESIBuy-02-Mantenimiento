@@ -99,8 +99,11 @@ describe('SellerCatalog', () => {
     expect(element.querySelector('.reset-filter-btn')?.textContent).toContain('Limpiar filtros');
     expect(element.querySelector<HTMLImageElement>('.product-image')?.alt).toBe('');
     expect(element.querySelector('input[type="search"]')?.hasAttribute('aria-label')).toBe(true);
-    expect(element.querySelectorAll('.navigation-link[aria-disabled="true"]')).toHaveLength(2);
-    expect(element.querySelectorAll('.navigation-link[title="Próximamente"]')).toHaveLength(2);
+    // Las estadísticas ya están disponibles (HU24); solo las valoraciones siguen pendientes
+    expect(element.querySelectorAll('.navigation-link[aria-disabled="true"]')).toHaveLength(1);
+    expect(element.querySelectorAll('.navigation-link[title="Próximamente"]')).toHaveLength(1);
+    expect(element.querySelector('.navigation-link[href="/seller/estadisticas"]')?.textContent?.trim())
+      .toBe('Estadísticas');
 
     expect(element.querySelector<HTMLAnchorElement>('.edit-button')?.getAttribute('href'))
       .toBe('/products/product-1/edit');

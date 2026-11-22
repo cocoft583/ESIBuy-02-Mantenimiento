@@ -52,6 +52,16 @@ describe('AppSidebarComponent', () => {
     expect(link?.textContent?.trim()).toBe('Estadísticas');
   });
 
+  it('el menú del vendedor enlaza sus estadísticas', () => {
+    create();
+    component.variant = 'seller';
+    fixture.detectChanges();
+
+    const link = fixture.nativeElement.querySelector('a[href="/seller/estadisticas"]') as HTMLAnchorElement | null;
+    expect(link?.textContent?.trim()).toBe('Estadísticas');
+    expect(link?.getAttribute('aria-disabled')).toBeNull();
+  });
+
   it('en escritorio recupera la barra plegada que se guardó', () => {
     simulateViewport(false);
     localStorage.setItem('client-sidebar-collapsed', 'true');
