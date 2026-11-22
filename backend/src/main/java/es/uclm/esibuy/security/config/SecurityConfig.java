@@ -125,6 +125,8 @@ public class SecurityConfig {
                                                         .hasRole(ROLE_ADMIN)
                                                         .requestMatchers("/api/configuracion", "/api/configuracion/**")
                                                         .hasRole(ROLE_ADMIN)
+                                                        .requestMatchers("/api/seller/**")
+                                                        .hasRole(ROLE_SELLER)
                                                         .requestMatchers(HttpMethod.GET, "/api/products/mine",
                                                                         "/api/products/summary",
                                                                         "/api/products/resumen")
