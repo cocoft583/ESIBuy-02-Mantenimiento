@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
 import { signal } from '@angular/core';
-import { NEVER, of, throwError } from 'rxjs';
+import { BehaviorSubject, NEVER, of, throwError } from 'rxjs';
 import { describe, beforeEach, it, expect, vi } from 'vitest';
 import { ProductDetail } from './product-detail';
 import { ProductsService, ProductItem, Category } from '../../../core/services/products.service';
@@ -23,6 +23,7 @@ describe('ProductDetail', () => {
   let reviewsServiceMock: any;
   let currentUserSignal = signal<AuthenticatedUser | null>(null);
   let cartSignal = signal<any>(null);
+  let paramMapSubject: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
 
   const mockProduct: ProductItem = {
     id: 'p-1',
@@ -43,6 +44,7 @@ describe('ProductDetail', () => {
   const mockCategories: Category[] = [{ id: 'cat-1', name: 'Telefonía' }];
 
   beforeEach(async () => {
+    paramMapSubject = new BehaviorSubject(convertToParamMap({ id: 'p-1' }));
     currentUserSignal = signal<AuthenticatedUser | null>({
       id: 'client-1',
       email: 'client@example.com',
@@ -92,7 +94,10 @@ describe('ProductDetail', () => {
         provideRouter([]),
         {
           provide: ActivatedRoute,
-          useValue: { snapshot: { paramMap: convertToParamMap({ id: 'p-1' }) } },
+          useValue: {
+            paramMap: paramMapSubject.asObservable(),
+            snapshot: { paramMap: convertToParamMap({ id: 'p-1' }) },
+          },
         },
         { provide: ProductsService, useValue: productsServiceMock },
         { provide: WishlistService, useValue: wishlistServiceMock },
@@ -402,6 +407,123 @@ describe('ProductDetail', () => {
     expect(el.querySelector('.detail-premium-price-row')).toBeNull();
     expect(el.querySelector('.premium-savings')).toBeNull();
     expect(el.querySelector('.premium-offer-badge')?.textContent).toContain('-25% Premium');
+  });
+  const unavailableError = () => new HttpErrorResponse({
+    status: 410,
+    error: { code: 'PRODUCT_UNAVAILABLE', message: 'texto del backend que no debe usarse' },
+  });
+
+  it('shows the unavailable state when the product answers 410 PRODUCT_UNAVAILABLE', () => {
+    productsServiceMock.getProductById.mockReturnValueOnce(throwError(unavailableError));
+
+    component.loadProduct('p-1');
+    fixture.detectChanges();
+
+    const el: HTMLElement = fixture.nativeElement;
+    const alert = el.querySelector('.detail-error');
+    expect(component.productUnavailable()).toBe(true);
+    expect(component.error()).toBe(false);
+    expect(component.product()).toBeNull();
+    expect(alert?.getAttribute('role')).toBe('alert');
+    expect(alert?.textContent).toContain('Este producto ya no está disponible');
+    expect(alert?.textContent).toContain('Volver al catálogo');
+    expect(alert?.textContent).not.toContain('texto del backend que no debe usarse');
+  });
+
+  it('does not render purchase, quantity or favorite controls when the product is unavailable', () => {
+    productsServiceMock.getProductById.mockReturnValueOnce(throwError(unavailableError));
+
+    component.loadProduct('p-1');
+    fixture.detectChanges();
+
+    const el: HTMLElement = fixture.nativeElement;
+    expect(el.querySelector('.primary-buy-btn')).toBeNull();
+    expect(el.querySelector('.detail-quantity-picker')).toBeNull();
+    expect(el.querySelector('.heart-toggle-btn')).toBeNull();
+    expect(el.querySelector('.purchase-box')).toBeNull();
+    expect(el.querySelector('.product-heading')).toBeNull();
+  });
+
+  it('goes back to the catalog from the unavailable state', () => {
+    const router = TestBed.inject(Router);
+    const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    productsServiceMock.getProductById.mockReturnValueOnce(throwError(unavailableError));
+
+    component.loadProduct('p-1');
+    fixture.detectChanges();
+
+    const button = (fixture.nativeElement as HTMLElement).querySelector('.detail-error button') as HTMLButtonElement;
+    expect(button).not.toBeNull();
+    button.click();
+
+    expect(navigateSpy).toHaveBeenCalledWith(['/client/catalog']);
+  });
+
+  it('does not show the unavailable state for a 410 with another error code', () => {
+    productsServiceMock.getProductById.mockReturnValueOnce(throwError(() => new HttpErrorResponse({
+      status: 410,
+      error: { code: 'OTHER_ERROR' },
+    })));
+
+    component.loadProduct('p-1');
+
+    expect(component.productUnavailable()).toBe(false);
+    expect(component.error()).toBe(true);
+    expect(component.errorMessage()).toBe('No se pudo cargar la información del producto.');
+  });
+
+  it('keeps the not found message when the product does not exist', () => {
+    productsServiceMock.getProductById.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 404 })));
+
+    component.loadProduct('p-1');
+
+    expect(component.productUnavailable()).toBe(false);
+    expect(component.error()).toBe(true);
+    expect(component.errorMessage()).toBe('El producto no existe.');
+  });
+
+  it('keeps the generic message for other server errors', () => {
+    productsServiceMock.getProductById.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 500 })));
+
+    component.loadProduct('p-1');
+
+    expect(component.productUnavailable()).toBe(false);
+    expect(component.error()).toBe(true);
+    expect(component.errorMessage()).toBe('No se pudo cargar la información del producto.');
+  });
+
+  it('does not request the reviews when the product is unavailable', () => {
+    reviewsServiceMock.getProductReviews.mockClear();
+    productsServiceMock.getProductById.mockReturnValueOnce(throwError(unavailableError));
+
+    component.loadProduct('p-1');
+
+    expect(reviewsServiceMock.getProductReviews).not.toHaveBeenCalled();
+  });
+
+  it('clears the unavailable state when the route moves to another product', () => {
+    productsServiceMock.getProductById.mockReturnValueOnce(throwError(unavailableError));
+
+    paramMapSubject.next(convertToParamMap({ id: 'p-2' }));
+    fixture.detectChanges();
+    expect(component.productUnavailable()).toBe(true);
+
+    paramMapSubject.next(convertToParamMap({ id: 'p-3' }));
+    fixture.detectChanges();
+
+    expect(component.productUnavailable()).toBe(false);
+    expect(productsServiceMock.getProductById).toHaveBeenLastCalledWith('p-3');
+    expect(component.product()).toEqual(mockProduct);
+    expect((fixture.nativeElement as HTMLElement).querySelector('.detail-error')).toBeNull();
+  });
+
+  it('shows an error when the route has no product id', () => {
+    paramMapSubject.next(convertToParamMap({}));
+    fixture.detectChanges();
+
+    expect(component.productUnavailable()).toBe(false);
+    expect(component.error()).toBe(true);
+    expect(component.errorMessage()).toBe('Identificador de producto no válido');
   });
 
 
