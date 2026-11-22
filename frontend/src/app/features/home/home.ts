@@ -6,7 +6,7 @@ import { ProductsService, ProductItem, Category } from '../../core/services/prod
 import { WishlistService } from '../../core/services/wishlist.service';
 import { ToastService } from '../../core/services/toast.service';
 import { CartService } from '../../core/services/cart.service';
-import { insufficientStockMessage } from '../../core/utils/cart-error-message';
+import { cartRejectionMessage } from '../../core/utils/cart-error-message';
 
 const LOW_STOCK_THRESHOLD = 5;
 
@@ -284,7 +284,7 @@ export class Home implements OnInit {
         this.toastService.show('Producto añadido al carrito', 'success');
       },
       error: (error: unknown) => {
-        this.toastService.show(insufficientStockMessage(error) ?? 'Error al añadir producto al carrito', 'error');
+        this.toastService.show(cartRejectionMessage(error) ?? 'Error al añadir producto al carrito', 'error');
       },
     }).add(() => this.cartAdding.update((states) => ({ ...states, [product.id]: false })));
   }
