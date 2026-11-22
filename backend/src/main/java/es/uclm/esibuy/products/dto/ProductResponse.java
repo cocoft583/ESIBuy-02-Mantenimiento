@@ -20,7 +20,8 @@ public record ProductResponse(
         Double rating,
         String sellerName,
         int reviewCount,
-        boolean premiumOnly) {
+        boolean premiumOnly,
+        boolean purchasable) {
 
     public ProductResponse {
         categoryIds = List.copyOf(categoryIds);
@@ -52,7 +53,7 @@ public record ProductResponse(
                 sellerId,
                 null,
                 null,
-                0, false);
+                0, false, true);
     }
 
     public ProductResponse(
@@ -82,7 +83,7 @@ public record ProductResponse(
                 sellerId,
                 rating,
                 null,
-                0, false);
+                0, false, true);
     }
 
     public ProductResponse(
@@ -113,7 +114,7 @@ public record ProductResponse(
                 sellerId,
                 rating,
                 sellerName,
-                0, false);
+                0, false, true);
     }
 
     public static ProductResponse from(Product product) {
@@ -136,6 +137,15 @@ public record ProductResponse(
                 product.getRating(),
                 sellerName,
                 product.getReviewCount(),
-                product.isPremiumOnly());
+                product.isPremiumOnly(),
+                !product.isPremiumOnly());
+    }
+
+    /** Devuelve la respuesta con purchasable calculado para el cliente que la ve (HU16). */
+    public ProductResponse forCustomer(boolean premiumCustomer) {
+        return new ProductResponse(
+                id, name, categoryIds, stock, description, price, discount, premiumDiscount,
+                imageUrl, available, sellerId, rating, sellerName, reviewCount,
+                premiumOnly, !premiumOnly || premiumCustomer);
     }
 }
