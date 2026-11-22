@@ -58,6 +58,13 @@ export const routes: Routes = [
 
   { path: 'seller/catalog', component: SellerCatalog, canActivate: [webOnlyGuard, authGuard, roleGuard('SELLER')] },
   { path: 'seller/orders', component: SellerOrders, canActivate: [webOnlyGuard, authGuard, roleGuard('SELLER')] },
+  {
+    // Bajo demanda, como las del administrador: Chart.js solo se descarga al abrir las estadísticas
+    path: 'seller/estadisticas',
+    loadComponent: () =>
+      import('./features/products/seller-statistics/seller-statistics').then((m) => m.SellerStatistics),
+    canActivate: [webOnlyGuard, authGuard, roleGuard('SELLER')],
+  },
   { path: 'products/new', component: ProductCreate, canActivate: [webOnlyGuard, authGuard, roleGuard('SELLER')] },
   { path: 'products/:id', component: ProductDetail },
   { path: 'products/:id/edit', component: ProductCreate, canActivate: [webOnlyGuard, authGuard, roleGuard('SELLER')] },
