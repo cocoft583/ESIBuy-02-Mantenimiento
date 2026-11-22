@@ -138,6 +138,58 @@ class MongoStatisticsRepositoryTest {
         assertThat(repository.findTopSellingProducts(10)).isEmpty();
     }
 
+    @Test
+    @DisplayName("HU24-CP09: del vendedor solo cuentan sus líneas pagadas y no canceladas")
+    void shouldOnlyCountPaidAndNotCancelledLinesOfTheSeller() {
+        order("PAGADO", "ENTREGADO",
+                line("p1", "Teclado", "v1", 2, "20.00"),
+                line("p9", "Altavoz", "v2", 50, "500.00"));
+        order("PAGADO", "CANCELADO", line("p1", "Teclado", "v1", 40, "400.00"));
+        order("PENDIENTE", "PENDIENTE", line("p1", "Teclado", "v1", 30, "300.00"));
+
+        List<ProductSalesRow> sales = repository.findSellerProductSales("v1", List.of("p1"));
+
+        assertThat(sales).extracting(ProductSalesRow::productId).containsExactly("p1");
+        assertThat(sales.get(0).unitsSold()).isEqualTo(2);
+        assertThat(sales.get(0).revenue()).isEqualByComparingTo("20.00");
+    }
+
+    @Test
+    @DisplayName("HU24-CP10: una línea antigua sin vendedor cuenta si el producto es del vendedor")
+    void shouldAttributeLegacyLinesWithoutSellerByProduct() {
+        order("PAGADO", "ENVIADO",
+                line("p1", "Teclado", null, 2, "20.00"),
+                line("p8", "Ratón", null, 4, "40.00"));
+        order("PAGADO", "ENVIADO", line("p1", "Teclado", "", 1, "10.00"));
+
+        List<ProductSalesRow> sales = repository.findSellerProductSales("v1", List.of("p1"));
+
+        assertThat(sales).extracting(ProductSalesRow::productId).containsExactly("p1");
+        assertThat(sales.get(0).unitsSold()).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("HU24-CP11: una línea de otro vendedor no cuenta aunque el producto sea ahora del vendedor")
+    void shouldNotCountLinesOfAnotherSellerForTheSameProduct() {
+        order("PAGADO", "ENTREGADO", line("p1", "Teclado", "v2", 5, "50.00"));
+
+        assertThat(repository.findSellerProductSales("v1", List.of("p1"))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("HU24-CP12: se devuelven todas las filas del vendedor, de más a menos vendidas")
+    void shouldReturnEveryRowOfTheSellerSortedByUnits() {
+        for (int i = 0; i < 12; i++) {
+            order("PAGADO", "ENTREGADO", line("p" + i, "Producto " + i, "v1", i + 1, "10.00"));
+        }
+
+        List<ProductSalesRow> sales = repository.findSellerProductSales("v1", List.of());
+
+        assertThat(sales).hasSize(12);
+        assertThat(sales.get(0).productId()).isEqualTo("p11");
+        assertThat(sales.get(11).productId()).isEqualTo("p0");
+    }
+
     private Document line(String productId, String name, String sellerId, int quantity, Object subtotal) {
         return new Document("productoId", productId)
                 .append("nombre", name)
