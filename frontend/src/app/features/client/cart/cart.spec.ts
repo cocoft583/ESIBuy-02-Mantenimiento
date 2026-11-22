@@ -903,5 +903,14 @@ describe('ClientCart', () => {
       expect(alert).not.toContain('error interno');
       expect(element.querySelector('.checkout-panel')).not.toBeNull();
     });
+
+    it('should ask to check the orders before retrying when the connection is lost while paying', async () => {
+      const element = await placeOrder(failWith(0));
+
+      const alert = element.querySelector('[role="alert"]')?.textContent ?? '';
+      expect(alert).toContain('No hemos podido saber si tu pedido se ha completado');
+      expect(alert).toContain('revisa Mis pedidos');
+      expect(element.querySelector('.checkout-panel')).not.toBeNull();
+    });
   });
 });
