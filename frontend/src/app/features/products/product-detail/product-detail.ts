@@ -1,11 +1,13 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ProductsService, ProductItem, Category } from '../../../core/services/products.service';
 import { WishlistService } from '../../../core/services/wishlist.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { CartService } from '../../../core/services/cart.service';
+import { PREMIUM_ONLY_MESSAGE, cartRejectionMessage } from '../../../core/utils/cart-error-message';
+import { isBlockedForCustomer } from '../../../core/utils/premium-only';
 import { ProductReviewSummary, ReviewsService } from '../../../core/services/reviews.service';
 import { ADMIN_READONLY_ERROR_MESSAGE } from '../../../core/services/admin-product.service';
 import { AppSidebarComponent } from '../../../shared/app-sidebar/app-sidebar';
@@ -15,7 +17,7 @@ const LOW_STOCK_THRESHOLD = 5;
 @Component({
   selector: 'app-product-detail',
   standalone: true,
-  imports: [FormsModule, AppSidebarComponent],
+  imports: [FormsModule, AppSidebarComponent, RouterLink],
   templateUrl: './product-detail.html',
   styleUrl: './product-detail.css',
 })
@@ -371,6 +373,10 @@ export class ProductDetail implements OnInit {
     this.addToCart();
   }
 
+  isBlockedForCustomer(product: ProductItem): boolean {
+    return isBlockedForCustomer(product);
+  }
+
   addToCart(): void {
     const p = this.product();
     if (!p) return;
@@ -392,6 +398,11 @@ export class ProductDetail implements OnInit {
       return;
     }
 
+    if (isBlockedForCustomer(p)) {
+      this.toastService.show(PREMIUM_ONLY_MESSAGE, 'info');
+      return;
+    }
+
     const avail = this.availableStock();
     if (avail <= 0) {
       this.toastService.show('No quedan existencias disponibles de este producto.', 'error');
@@ -405,8 +416,8 @@ export class ProductDetail implements OnInit {
         this.toastService.show('Producto añadido al carrito', 'success');
         this.quantity.set(1);
       },
-      error: () => {
-        this.toastService.show('Error al añadir producto al carrito', 'error');
+      error: (error: unknown) => {
+        this.toastService.show(cartRejectionMessage(error) ?? 'Error al añadir producto al carrito', 'error');
       },
     }).add(() => this.cartAdding.set(false));
   }

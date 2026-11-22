@@ -24,6 +24,9 @@
         <p class="eyebrow">COMPRA COMPLETADA</p>
         <h2 id="order-confirmation-title">¡Gracias por tu pedido!</h2>
         <p>Tu pedido se ha confirmado correctamente.</p>
+        <p class="order-history">
+          Se ha realizado el cargo y ya puedes seguir el pedido en <a routerLink="/client/orders">Mis pedidos</a>.
+        </p>
         <p class="order-number">
           Identificador de pedido: <strong>{{ order.pedidoId }}</strong>
         </p>
@@ -211,7 +214,8 @@
                       {{ item.cantidad }}
                     </span>
 
-                    <button class="quantity-action" type="button" [disabled]="busyItemIds().has(item.productoId)"
+                    <button class="quantity-action" type="button" [class.is-at-limit]="isAtStockLimit(item)"
+                      [disabled]="busyItemIds().has(item.productoId) || isAtStockLimit(item)"
                       [attr.aria-label]="'Aumentar cantidad de ' + item.nombre"
                       (click)="changeQuantity(item.productoId, item.cantidad + 1)">
                       +
@@ -227,6 +231,16 @@
                     <output class="cart-state">Actualizando…</output>
                     }
                   </div>
+
+                  @if (isAtStockLimit(item)) {
+                  <p class="stock-limit">
+                    @if (item.cantidad > item.stockDisponible!) {
+                    Solo quedan {{ item.stockDisponible }} {{ item.stockDisponible === 1 ? 'unidad' : 'unidades' }}
+                    } @else {
+                    Máximo disponible: {{ item.stockDisponible }}
+                    }
+                  </p>
+                  }
                 </div>
 
                 <p class="item-subtotal">{{ formatPrice(item.subtotal) }}</p>

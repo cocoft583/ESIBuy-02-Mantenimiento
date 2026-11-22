@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
@@ -203,6 +204,75 @@ describe('ClientCatalog', () => {
 
     expect(cartServiceMock.addItem).toHaveBeenCalledWith('p-1', 1);
     expect(toastServiceMock.show).toHaveBeenCalledWith('Producto añadido al carrito', 'success');
+  });
+
+  it('should show the stock message when the cart already holds all the units', () => {
+    cartServiceMock.addItem.mockReturnValue(throwError(() => new HttpErrorResponse({
+      status: 409,
+      error: { message: 'No hay stock suficiente para la cantidad solicitada', code: 'INSUFFICIENT_STOCK' },
+    })));
+    const addBtn = fixture.nativeElement.querySelector('.add-to-cart-action-btn') as HTMLButtonElement;
+
+    addBtn.click();
+
+    expect(toastServiceMock.show).toHaveBeenCalledWith('No hay stock suficiente para la cantidad solicitada', 'error');
+  });
+
+  // HU16: los exclusivos se enseñan a todos; a quien no es Premium, bloqueados y con enlace a Premium.
+
+  async function renderExclusive(purchasable: boolean): Promise<HTMLElement> {
+    productsServiceMock.getPublicCatalog.mockReturnValue(of(catalogPage([
+      { ...mockProducts[1], id: 'p-exclusive', name: 'Edición limitada', premiumOnly: true, purchasable },
+    ])));
+    fixture = TestBed.createComponent(ClientCatalog);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  it('shows an exclusive product to a standard client with a badge, a blocked button and a link to Premium', async () => {
+    const el = await renderExclusive(false);
+
+    const card = el.querySelector('.product-card') as HTMLElement;
+    expect(card.textContent).toContain('Edición limitada');
+    expect(card.querySelector('.premium-only-badge')?.textContent).toContain('Exclusivo Premium');
+    const addBtn = card.querySelector('.add-to-cart-action-btn') as HTMLButtonElement;
+    expect(addBtn.disabled).toBe(true);
+    expect(addBtn.textContent).toContain('Solo Premium');
+    expect(card.querySelector('a.premium-upsell-link')?.getAttribute('href')).toBe('/client/profile');
+
+    component.addToCart(component.products()[0], new Event('click'));
+    expect(cartServiceMock.addItem).not.toHaveBeenCalled();
+  });
+
+  it('lets a Premium client buy an exclusive product and still shows the badge', async () => {
+    const el = await renderExclusive(true);
+
+    const card = el.querySelector('.product-card') as HTMLElement;
+    expect(card.querySelector('.premium-only-badge')).not.toBeNull();
+    expect(card.querySelector('a.premium-upsell-link')).toBeNull();
+    const addBtn = card.querySelector('.add-to-cart-action-btn') as HTMLButtonElement;
+    expect(addBtn.disabled).toBe(false);
+    addBtn.click();
+    expect(cartServiceMock.addItem).toHaveBeenCalledWith('p-exclusive', 1);
+  });
+
+  it('does not show the exclusive badge on regular products', () => {
+    expect(fixture.nativeElement.querySelector('.premium-only-badge')).toBeNull();
+  });
+
+  it('explains why the cart rejects an exclusive product', () => {
+    cartServiceMock.addItem.mockReturnValue(throwError(() => new HttpErrorResponse({
+      status: 403,
+      error: { message: 'Este producto es exclusivo para clientes Premium', code: 'PREMIUM_ONLY' },
+    })));
+    const addBtn = fixture.nativeElement.querySelector('.add-to-cart-action-btn') as HTMLButtonElement;
+
+    addBtn.click();
+
+    expect(toastServiceMock.show).toHaveBeenCalledWith('Este producto es exclusivo para clientes Premium', 'error');
   });
 
   it('should ignore repeated add-to-cart clicks while the request is pending', () => {

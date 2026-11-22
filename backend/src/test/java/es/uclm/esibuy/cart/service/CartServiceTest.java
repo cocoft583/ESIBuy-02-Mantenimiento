@@ -10,6 +10,7 @@ import es.uclm.esibuy.cart.dto.UpdateCartItemQuantityDTO;
 import es.uclm.esibuy.cart.model.Cart;
 import es.uclm.esibuy.cart.repository.CartRepository;
 import es.uclm.esibuy.common.exception.ProductNotFoundException;
+import es.uclm.esibuy.common.exception.ProductoExclusivoPremiumException;
 import es.uclm.esibuy.common.exception.ProductoNoDisponibleException;
 import es.uclm.esibuy.common.exception.StockInsuficienteException;
 import es.uclm.esibuy.products.model.Product;
@@ -355,6 +356,61 @@ class CartServiceTest {
                 when(product.getImageUrl()).thenReturn("https://example.com/auriculares.jpg");
 
                 return product;
+        }
+
+        // HU16: solo los clientes Premium pueden añadir al carrito un producto exclusivo.
+
+        private Product premiumOnlyProduct() {
+                Product product = mock(Product.class);
+                lenient().when(product.getId()).thenReturn(PRODUCT_ID);
+                lenient().when(product.getName()).thenReturn(PRODUCT_NAME);
+                lenient().when(product.getPrice()).thenReturn(PRICE);
+                lenient().when(product.getStock()).thenReturn(5);
+                lenient().when(product.isAvailable()).thenReturn(true);
+                lenient().when(product.isPremiumOnly()).thenReturn(true);
+                return product;
+        }
+
+        @Test
+        @DisplayName("HU16: un cliente Estándar no puede añadir un producto exclusivo al carrito")
+        void shouldRejectPremiumOnlyProductForStandardCustomer() {
+                Product product = premiumOnlyProduct();
+                mockCustomerType(CUSTOMER_ID, CustomerType.STANDARD);
+                when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
+                lenient().when(cartRepository.findByCustomerId(CUSTOMER_ID)).thenReturn(Optional.empty());
+
+                assertThrows(ProductoExclusivoPremiumException.class,
+                                () -> cartService.addItem(CUSTOMER_ID, new AddCartItemDTO(PRODUCT_ID, 1)));
+
+                verify(cartRepository, never()).save(any(Cart.class));
+        }
+
+        @Test
+        @DisplayName("HU16: un cliente sin perfil de cliente se trata como Estándar")
+        void shouldRejectPremiumOnlyProductWhenCustomerIsUnknown() {
+                Product product = premiumOnlyProduct();
+                when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
+                lenient().when(cartRepository.findByCustomerId(CUSTOMER_ID)).thenReturn(Optional.empty());
+
+                assertThrows(ProductoExclusivoPremiumException.class,
+                                () -> cartService.addItem(CUSTOMER_ID, new AddCartItemDTO(PRODUCT_ID, 1)));
+
+                verify(cartRepository, never()).save(any(Cart.class));
+        }
+
+        @Test
+        @DisplayName("HU16: un cliente Premium sí puede añadir un producto exclusivo al carrito")
+        void shouldAllowPremiumCustomerToAddPremiumOnlyProduct() {
+                Product product = premiumOnlyProduct();
+                mockCustomerType(CUSTOMER_ID, CustomerType.PREMIUM);
+                when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
+                when(cartRepository.findByCustomerId(CUSTOMER_ID)).thenReturn(Optional.empty());
+                when(cartRepository.save(any(Cart.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+                CartDTO result = cartService.addItem(CUSTOMER_ID, new AddCartItemDTO(PRODUCT_ID, 1));
+
+                assertEquals(1, result.items().size());
+                assertEquals(PRODUCT_ID, result.items().get(0).productId());
         }
 
         private Product productWithStock(int stock) {

@@ -4,23 +4,23 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import es.uclm.esibuy.common.filter.CorrelationIdFilter;
-import es.uclm.esibuy.security.password.PasswordCheckUnavailableException;
-import jakarta.validation.ConstraintViolation;
-import jakarta.validation.ConstraintViolationException;
-import jakarta.servlet.http.HttpServletRequest;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
+
+import es.uclm.esibuy.common.filter.CorrelationIdFilter;
 import es.uclm.esibuy.security.password.CompromisedPasswordException;
+import es.uclm.esibuy.security.password.PasswordCheckUnavailableException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
@@ -108,6 +108,13 @@ public class ApiExceptionHandler {
                                 CORRELATION_ID, id));
         }
 
+        @ExceptionHandler(AlertNotFoundException.class)
+        public ResponseEntity<Map<String, String>> handleAlertNotFound(AlertNotFoundException exception,
+                        HttpServletRequest request) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(MESSAGE, exception.getMessage(),
+                                CORRELATION_ID, correlationId(request)));
+        }
+
         @ExceptionHandler(AccessDeniedException.class)
         public ResponseEntity<Map<String, String>> handleAccessDenied(AccessDeniedException exception) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(MESSAGE, exception.getMessage()));
@@ -172,6 +179,16 @@ public class ApiExceptionHandler {
                                 CORRELATION_ID, correlationId(request)));
         }
 
+        @ExceptionHandler(ProductoExclusivoPremiumException.class)
+        public ResponseEntity<Map<String, String>> handlePremiumOnly(
+                        ProductoExclusivoPremiumException exception,
+                        HttpServletRequest request) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+                                MESSAGE, exception.getMessage(),
+                                "code", ProductoExclusivoPremiumException.CODE,
+                                CORRELATION_ID, correlationId(request)));
+        }
+
         @ExceptionHandler(StockInsuficienteException.class)
         public ResponseEntity<Map<String, String>> handleInsufficientStock(StockInsuficienteException exception,
                         HttpServletRequest request) {
@@ -186,6 +203,17 @@ public class ApiExceptionHandler {
                         PagoFallidoException exception, HttpServletRequest request) {
                 return ResponseEntity.status(HttpStatus.PAYMENT_REQUIRED).body(Map.of(
                                 MESSAGE, exception.getMessage(), CORRELATION_ID, correlationId(request)));
+        }
+
+        @ExceptionHandler(PedidoNoCompletadoException.class)
+        public ResponseEntity<Map<String, String>> handleOrderNotCompleted(
+                        PedidoNoCompletadoException exception, HttpServletRequest request) {
+                String id = correlationId(request);
+
+                LOGGER.error("No se pudo completar el pedido. correlationId={}", id, exception.getCause());
+
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of(
+                                MESSAGE, exception.getMessage(), CORRELATION_ID, id));
         }
 
         @ExceptionHandler(RecursoCheckoutNoEncontradoException.class)

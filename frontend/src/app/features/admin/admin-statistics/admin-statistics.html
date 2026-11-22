@@ -1,0 +1,109 @@
+<div class="admin-layout seller-shell" [class.app-sidebar-collapsed]="sidebarCollapsed()">
+  <app-shared-sidebar variant="admin" [collapsed]="sidebarCollapsed()" (collapsedChange)="sidebarCollapsed.set($event)">
+  </app-shared-sidebar>
+
+  <button type="button" class="app-sidebar-toggle-open" (click)="toggleSidebar()" aria-label="Mostrar barra lateral"
+    [hidden]="!sidebarCollapsed()">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="m9 18 6-6-6-6" />
+    </svg>
+  </button>
+
+  <div class="admin-workspace app-workspace">
+    <main class="admin-content">
+      <div class="statistics-content users-main-card">
+
+        <header class="page-heading">
+          <div class="page-heading-copy">
+            <p class="eyebrow">PANEL DE ADMINISTRACIÓN</p>
+            <h1>Estadísticas</h1>
+            <p class="page-description">
+              Qué se vende más en ESIBuy. Solo cuentan los pedidos pagados que no se han cancelado.
+            </p>
+          </div>
+          <button type="button" class="refresh-button" (click)="loadSales()" [disabled]="loading()">
+            <svg viewBox="0 0 24 24" aria-hidden="true" [class.is-spinning]="loading()">
+              <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+              <path d="M21 3v6h-6" />
+            </svg>
+            Actualizar
+          </button>
+        </header>
+
+        <section class="statistics-section" aria-labelledby="sales-title">
+          <div class="section-heading">
+            <span class="section-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M3 3v18h18" />
+                <path d="m7 15 4-4 3 3 6-7" />
+              </svg>
+            </span>
+            <div>
+              <h2 id="sales-title">Ventas</h2>
+              <p>Los 10 productos más vendidos de la plataforma.</p>
+            </div>
+          </div>
+
+          @if (loading()) {
+          <output class="state-message" aria-live="polite">
+            <span class="loader" aria-hidden="true"></span>
+            Cargando las estadísticas…
+          </output>
+          } @else if (errorMessage(); as message) {
+          <div class="statistics-error">
+            <p class="alert is-error" role="alert">{{ message }}</p>
+            <button class="secondary-button retry-button" type="button" (click)="loadSales()">Reintentar</button>
+          </div>
+          } @else if (sales().length === 0) {
+          <div class="statistics-empty">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 3v18h18" />
+              <path d="M7 16h2M11 12h2M15 8h2" />
+            </svg>
+            <p>Todavía no hay ventas pagadas. Cuando se pague el primer pedido aparecerá aquí el ranking.</p>
+          </div>
+          } @else {
+          <div class="kpi-grid">
+            <article class="kpi-card" style="--card-index: 0">
+              <p class="kpi-label">Unidades vendidas</p>
+              <p class="kpi-value" [appCountUp]="totalUnits()"></p>
+              <p class="kpi-hint">Entre los 10 más vendidos</p>
+            </article>
+            <article class="kpi-card" style="--card-index: 1">
+              <p class="kpi-label">Ingresos</p>
+              <p class="kpi-value" [appCountUp]="totalRevenue()" countUpFormat="currency"></p>
+              <p class="kpi-hint">Lo pagado por esos productos</p>
+            </article>
+            <article class="kpi-card is-highlight" style="--card-index: 2">
+              <p class="kpi-label">Más vendido</p>
+              <p class="kpi-value kpi-value--text" [attr.title]="topProduct()?.productName">
+                {{ topProduct()?.productName }}
+              </p>
+              <p class="kpi-hint">
+                <span [appCountUp]="topProduct()?.unitsSold ?? 0"></span> unidades
+              </p>
+            </article>
+            <article class="kpi-card" style="--card-index: 3">
+              <p class="kpi-label">Vendedores</p>
+              <p class="kpi-value" [appCountUp]="sellerCount()"></p>
+              <p class="kpi-hint">Con algún producto en el ranking</p>
+            </article>
+          </div>
+
+          <div class="ranking-stack">
+            <app-statistics-ranking heading="Productos más vendidos"
+              description="Ordenados de más a menos unidades vendidas." labelHeader="Producto"
+              detailHeader="Vendedor" [rows]="productRows()" [metrics]="salesMetrics"
+              emptyMessage="Todavía no hay ventas pagadas." />
+
+            <app-statistics-ranking heading="Reparto por vendedor"
+              description="Cuánto aporta cada vendedor dentro de los 10 productos más vendidos." labelHeader="Vendedor"
+              detailHeader="En el ranking" [rows]="sellerRows()" [metrics]="salesMetrics"
+              [chartTypes]="['doughnut', 'bar', 'polarArea']" emptyMessage="Todavía no hay ventas pagadas." />
+          </div>
+          }
+        </section>
+      </div>
+    </main>
+  </div>
+</div>

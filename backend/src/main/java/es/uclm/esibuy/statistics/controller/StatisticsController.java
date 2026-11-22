@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import es.uclm.esibuy.statistics.dto.ProductSalesDTO;
+import es.uclm.esibuy.statistics.dto.RatingStatisticsDTO;
 import es.uclm.esibuy.statistics.service.StatisticsService;
 
 @RestController
@@ -27,5 +28,13 @@ public class StatisticsController {
     @GetMapping("/sales")
     public List<ProductSalesDTO> getSales() {
         return statisticsService.getTopSellingProducts();
+    }
+
+    /**
+     * Los productos y vendedores mejor valorados y la media de la plataforma, separado de las ventas.
+     */
+    @GetMapping("/ratings")
+    public RatingStatisticsDTO getRatings() {
+        return statisticsService.getRatingStatistics();
     }
 }

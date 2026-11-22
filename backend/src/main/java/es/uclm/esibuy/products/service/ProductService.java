@@ -2,7 +2,6 @@ package es.uclm.esibuy.products.service;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -16,12 +15,15 @@ import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
 
 import org.bson.types.ObjectId;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.gridfs.GridFsResource;
 import org.springframework.data.mongodb.gridfs.GridFsTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
@@ -33,7 +35,6 @@ import es.uclm.esibuy.categories.repository.CategoryRepository;
 import es.uclm.esibuy.common.exception.CategoryNotFoundException;
 import es.uclm.esibuy.common.exception.ProductNotFoundException;
 import es.uclm.esibuy.common.exception.ProductoDesactivadoException;
-import es.uclm.esibuy.security.AuthenticatedUserPrincipal;
 import es.uclm.esibuy.products.dto.CatalogPageResponse;
 import es.uclm.esibuy.products.dto.CatalogSearch;
 import es.uclm.esibuy.products.dto.ProductCreateRequest;
@@ -41,11 +42,15 @@ import es.uclm.esibuy.products.dto.ProductDetailDTO;
 import es.uclm.esibuy.products.dto.ProductResponse;
 import es.uclm.esibuy.products.dto.ProductSummaryDTO;
 import es.uclm.esibuy.products.dto.ProductSummaryResponse;
+import es.uclm.esibuy.products.event.ProductChangedEvent;
+import es.uclm.esibuy.products.event.ProductSnapshot;
 import es.uclm.esibuy.products.model.Product;
 import es.uclm.esibuy.products.model.ProductDetails;
 import es.uclm.esibuy.products.repository.ProductCatalogRepository;
 import es.uclm.esibuy.products.repository.ProductCatalogRepository.CatalogResult;
 import es.uclm.esibuy.products.repository.ProductRepository;
+import es.uclm.esibuy.security.AuthenticatedUserPrincipal;
+import es.uclm.esibuy.users.model.CustomerType;
 import es.uclm.esibuy.users.model.User;
 import es.uclm.esibuy.users.model.UserRole;
 import es.uclm.esibuy.users.repository.UserRepository;
@@ -69,18 +74,21 @@ private static final String NO_PERMISSIONS_MESSAGE = "No tiene permisos para mod
     private final UserRepository userRepository;
     private final GridFsTemplate gridFsTemplate;
     private final ProductCatalogRepository productCatalogRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public ProductService(
             ProductRepository productRepository,
             CategoryRepository categoryRepository,
             UserRepository userRepository,
             GridFsTemplate gridFsTemplate,
-            ProductCatalogRepository productCatalogRepository) {
+            ProductCatalogRepository productCatalogRepository,
+            ApplicationEventPublisher eventPublisher) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
         this.userRepository = userRepository;
         this.gridFsTemplate = gridFsTemplate;
         this.productCatalogRepository = productCatalogRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     public Product createProduct(
@@ -178,6 +186,7 @@ private static final String NO_PERMISSIONS_MESSAGE = "No tiene permisos para mod
         ImagePayload image = file == null || file.isEmpty() ? null : validateAndNormalizeImage(file);
         Product product = getProduct(id, authenticatedEmail);
         List<String> categoryIds = validateCategories(request);
+        ProductSnapshot before = ProductSnapshot.of(product);
         String oldFileId = product.getImageFileId();
         String newFileId = null;
         if (image != null) {
@@ -214,6 +223,7 @@ private static final String NO_PERMISSIONS_MESSAGE = "No tiene permisos para mod
             } catch (RuntimeException cleanup) {
                 /* La imagen antigua puede limpiarse posteriormente. */ }
         }
+        publishChange(before, saved);
         return saved;
     }
 
@@ -504,6 +514,7 @@ private static final String NO_PERMISSIONS_MESSAGE = "No tiene permisos para mod
         }
 
         List<String> categoryIds = validateCategories(request);
+        ProductSnapshot before = ProductSnapshot.of(product);
 
         product.setName(request.getName().trim());
         product.setCategoryIds(categoryIds);
@@ -518,12 +529,21 @@ private static final String NO_PERMISSIONS_MESSAGE = "No tiene permisos para mod
         product.setPremiumOnly(Boolean.TRUE.equals(request.getPremiumOnly()));
         product.setAvailable(Boolean.TRUE.equals(request.getAvailable()));
 
-        return productRepository.save(product);
+        Product saved = productRepository.save(product);
+        publishChange(before, saved);
+        return saved;
+    }
+
+    /** Avisa de que un producto existente se ha guardado, con cómo era antes y cómo es ahora. */
+    private void publishChange(ProductSnapshot before, Product saved) {
+        eventPublisher.publishEvent(new ProductChangedEvent(before, ProductSnapshot.of(saved)));
     }
 
     public List<ProductResponse> getAvailableProducts() {
-        return productRepository.findAllByAvailableTrueAndStockGreaterThan(0).stream()
-                .map(this::toProductResponse)
+        List<Product> products = productRepository.findAllByAvailableTrueAndStockGreaterThan(0);
+        boolean premiumViewer = isPremiumViewer(products);
+        return products.stream()
+                .map(product -> toProductResponse(product).forCustomer(premiumViewer))
                 .toList();
     }
 
@@ -531,8 +551,10 @@ private static final String NO_PERMISSIONS_MESSAGE = "No tiene permisos para mod
         CatalogResult result = productCatalogRepository.search(search);
         Map<String, String> sellerNames = resolveSellerNames(result.products());
 
+        boolean premiumViewer = isPremiumViewer(result.products());
         List<ProductResponse> content = result.products().stream()
-                .map(product -> ProductResponse.from(product, sellerNames.get(product.getSellerId())))
+                .map(product -> ProductResponse.from(product, sellerNames.get(product.getSellerId()))
+                        .forCustomer(premiumViewer))
                 .toList();
         int totalPages = (int) Math.ceil((double) result.total() / search.size());
 
@@ -679,7 +701,8 @@ private static final String NO_PERMISSIONS_MESSAGE = "No tiene permisos para mod
                         () -> new ProductNotFoundException(PRODUCT_NOT_FOUND_MESSAGE));
 
         if (product.isAvailable()) {
-            return toProductResponse(product);
+            boolean premiumViewer = product.isPremiumOnly() && isPremiumCustomer(principal);
+            return toProductResponse(product).forCustomer(premiumViewer);
         }
 
         if (principal != null
@@ -714,9 +737,12 @@ private static final String NO_PERMISSIONS_MESSAGE = "No tiene permisos para mod
             throw new AccessDeniedException(NO_PERMISSIONS_MESSAGE);
         }
 
+        ProductSnapshot before = ProductSnapshot.of(product);
         product.setAvailable(available);
 
-        return toProductResponse(productRepository.save(product));
+        Product saved = productRepository.save(product);
+        publishChange(before, saved);
+        return toProductResponse(saved);
     }
 
     private User findSeller(String authenticatedEmail) {
@@ -755,5 +781,26 @@ private static final String NO_PERMISSIONS_MESSAGE = "No tiene permisos para mod
         }
 
         return categoryIds;
+    }
+
+    /** Solo se consulta el tipo de cliente si en la lista hay algún exclusivo (HU16). */
+    private boolean isPremiumViewer(List<Product> products) {
+        if (products.stream().noneMatch(Product::isPremiumOnly)) {
+            return false;
+        }
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        return authentication != null
+                && authentication.getPrincipal() instanceof AuthenticatedUserPrincipal principal
+                && isPremiumCustomer(principal);
+    }
+
+    private boolean isPremiumCustomer(AuthenticatedUserPrincipal principal) {
+        if (principal == null || principal.id() == null) {
+            return false;
+        }
+        return userRepository.findById(principal.id())
+                .map(User::getClientProfile)
+                .map(profile -> CustomerType.PREMIUM.equals(profile.getCustomerType()))
+                .orElse(false);
     }
 }

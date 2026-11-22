@@ -122,6 +122,10 @@
             }
           </div>
 
+          @if (p.premiumOnly) {
+          <span class="premium-only-badge">★ Exclusivo Premium</span>
+          }
+
           <h1 class="product-heading">{{ p.name }}</h1>
 
           <!-- VALORACIÓN Y DISPONIBILIDAD -->
@@ -300,6 +304,18 @@
 
                 <button type="button" class="primary-buy-btn is-disabled" disabled aria-disabled="true">
                   Compra bloqueada
+                </button>
+              </div>
+              } @else if (isBlockedForCustomer(p)) {
+              <div class="purchase-blocked-message premium-only-blocked">
+                <p>
+                  Este producto es exclusivo para clientes Premium. Hazte Premium para poder comprarlo.
+                </p>
+
+                <a class="premium-upsell-link" routerLink="/client/profile">Hazte Premium</a>
+
+                <button type="button" class="primary-buy-btn is-disabled" disabled aria-disabled="true">
+                  Solo para clientes Premium
                 </button>
               </div>
               } @else if (availableStock() <= 0) { <div class="purchase-blocked-message">

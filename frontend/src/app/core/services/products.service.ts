@@ -18,6 +18,7 @@ export interface ProductItem {
   discount?: number | null;
   premiumDiscount?: number | null;
   premiumOnly?: boolean;
+  purchasable?: boolean;
   imageUrl?: string | null;
   available: boolean;
   sellerId: string;
@@ -75,6 +76,7 @@ export interface ProductDetails {
   discount: number | null;
   premiumDiscount: number | null;
   premiumOnly?: boolean;
+  purchasable?: boolean;
   imageUrl: string | null;
   available: boolean;
   sellerId: string;

@@ -21,4 +21,9 @@ public class SimulatedPaymentGateway implements PaymentGateway {
     public boolean charge(OrderPaymentMethod paymentMethod, BigDecimal amount) {
         return !simulateFailure;
     }
+
+    @Override
+    public void refund(OrderPaymentMethod paymentMethod, BigDecimal amount) {
+        // Pasarela simulada: no hay cobro real que devolver
+    }
 }

@@ -1,4 +1,5 @@
 import { httpErrorMessage } from '../../../core/utils/http-error-message';
+import { INSUFFICIENT_STOCK_MESSAGE } from '../../../core/utils/cart-error-message';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -7,6 +8,13 @@ import { Observable } from 'rxjs';
 import { CartItem, CartResponse, CartService } from '../../../core/services/cart.service';
 import { CheckoutSummary, ConfirmedOrder, PedidoService } from '../../../core/services/pedido.service';
 import { AppSidebarComponent } from '../../../shared/app-sidebar/app-sidebar';
+
+// HU11: si el servidor falla al pagar, el backend garantiza que no queda ningún cobro sin pedido
+const ORDER_NOT_CHARGED_MESSAGE =
+  'El pedido no se ha completado y no se ha realizado ningún cargo. Inténtalo de nuevo más tarde.';
+// Sin respuesta no se sabe si el cobro llegó a hacerse: reintentar a ciegas podría cobrarlo dos veces
+const ORDER_UNKNOWN_MESSAGE =
+  'No hemos podido saber si tu pedido se ha completado. Antes de volver a intentarlo, revisa Mis pedidos para no pagarlo dos veces.';
 
 export interface SellerCartGroup {
   vendedorId: string;
@@ -266,7 +274,18 @@ export class ClientCart {
     return this.currencyFormatter.format(price);
   }
 
+  // Hay stock conocido y el carrito ya tiene todas las unidades (o más)
+  isAtStockLimit(item: CartItem): boolean {
+    return typeof item.stockDisponible === 'number' && item.cantidad >= item.stockDisponible;
+  }
+
   changeQuantity(productoId: string, cantidad: number): void {
+    const item = this.cartService.cart()?.items.find((cartItem) => cartItem.productoId === productoId);
+    if (item && cantidad > item.cantidad && this.isAtStockLimit(item)) {
+      this.actionError.set(INSUFFICIENT_STOCK_MESSAGE);
+      return;
+    }
+
     this.runItemAction(
       productoId,
       () => this.cartService.updateItemQuantity(productoId, cantidad),
@@ -381,10 +400,23 @@ export class ClientCart {
         }
       },
       error: (error: unknown) => {
-        this.actionError.set(this.getOrderErrorMessage(error));
+        this.actionError.set(this.getPaymentErrorMessage(error));
         this.processingOrder.set(false);
       },
     });
+  }
+
+  // Al confirmar el pedido el cliente tiene que saber si se le ha cobrado
+  private getPaymentErrorMessage(error: unknown): string {
+    if (error instanceof HttpErrorResponse) {
+      if (error.status === 0) {
+        return ORDER_UNKNOWN_MESSAGE;
+      }
+      if (error.status >= 500 && error.status !== 503) {
+        return ORDER_NOT_CHARGED_MESSAGE;
+      }
+    }
+    return this.getOrderErrorMessage(error);
   }
 
   private getOrderErrorMessage(error: unknown): string {
@@ -399,6 +431,20 @@ export class ClientCart {
     return 'No se pudo completar el pedido. Inténtalo de nuevo.';
   }
 
+  // Igual que getOrderErrorMessage: el mensaje del backend si lo hay (p. ej. falta de stock)
+  private getItemActionErrorMessage(error: unknown): string {
+    const fallback = 'No se pudo actualizar el carrito. Inténtalo de nuevo.';
+    if (error instanceof HttpErrorResponse) {
+      if (typeof error.error?.message === 'string') {
+        return error.error.message;
+      }
+      if (error.status === 0) {
+        return httpErrorMessage(error) ?? fallback;
+      }
+    }
+    return fallback;
+  }
+
   private runItemAction(productoId: string, action: () => Observable<CartResponse>): void {
     if (this.busyItemIds().has(productoId)) {
       return;
@@ -407,8 +453,8 @@ export class ClientCart {
     this.actionError.set(null);
     this.setItemBusy(productoId, true);
     action().subscribe({
-      error: () => {
-        this.actionError.set('No se pudo actualizar el carrito. Inténtalo de nuevo.');
+      error: (error: unknown) => {
+        this.actionError.set(this.getItemActionErrorMessage(error));
         this.setItemBusy(productoId, false);
       },
       complete: () => this.setItemBusy(productoId, false),

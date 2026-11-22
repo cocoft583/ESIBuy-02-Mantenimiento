@@ -121,6 +121,10 @@ public class Order {
                 : paymentStatus;
     }
 
+    public void markAsPaid() {
+        this.paymentStatus = OrderPaymentStatus.PAGADO;
+    }
+
     public void setStatus(OrderStatus status) {
         OrderStatus newStatus = Objects.requireNonNull(status);
 

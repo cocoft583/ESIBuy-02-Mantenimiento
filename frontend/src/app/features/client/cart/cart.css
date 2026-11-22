@@ -441,6 +441,17 @@
   cursor: wait;
 }
 
+.quantity-action.is-at-limit:disabled {
+  cursor: not-allowed;
+}
+
+.stock-limit {
+  margin: .4rem 0 0;
+  color: #9a6411;
+  font-size: .75rem;
+  font-weight: 650;
+}
+
 .quantity-value {
   min-width: 1.5rem;
   color: #173d52;
@@ -911,6 +922,11 @@
   color: #718797;
   font-size: .88rem;
   line-height: 1.5;
+}
+
+.order-confirmation .order-history a {
+  color: #168c75;
+  font-weight: 650;
 }
 
 .order-confirmation .order-number {

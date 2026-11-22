@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { signal } from '@angular/core';
@@ -147,6 +148,25 @@ describe('Home', () => {
 
     expect(cartServiceMock.addItem).toHaveBeenCalledWith('p-1', 1);
     expect(toastServiceMock.show).toHaveBeenCalledWith('Producto añadido al carrito', 'success');
+  });
+
+  it('should show the stock message when the cart already holds all the units', () => {
+    currentUserSignal.set({
+      id: 'c-1',
+      email: 'client@example.com',
+      role: 'CLIENT',
+      active: true,
+    });
+    cartServiceMock.addItem.mockReturnValue(throwError(() => new HttpErrorResponse({
+      status: 409,
+      error: { message: 'No hay stock suficiente para la cantidad solicitada', code: 'INSUFFICIENT_STOCK' },
+    })));
+    fixture.detectChanges();
+
+    const addBtn = fixture.nativeElement.querySelector('.add-to-cart-action-btn') as HTMLButtonElement;
+    addBtn.click();
+
+    expect(toastServiceMock.show).toHaveBeenCalledWith('No hay stock suficiente para la cantidad solicitada', 'error');
   });
 
   it('should ignore repeated add-to-cart clicks while the request is pending', () => {

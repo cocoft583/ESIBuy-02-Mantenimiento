@@ -4,8 +4,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -14,21 +14,31 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.stereotype.Service;
+
 import com.mongodb.client.result.UpdateResult;
 
 import es.uclm.esibuy.cart.dto.CartItemDTO;
 import es.uclm.esibuy.cart.model.Cart;
 import es.uclm.esibuy.cart.model.CartItem;
 import es.uclm.esibuy.cart.repository.CartRepository;
-import es.uclm.esibuy.configuration.model.GeneralConfiguration;
-import es.uclm.esibuy.configuration.service.GeneralConfigurationService;
 import es.uclm.esibuy.common.exception.PagoFallidoException;
+import es.uclm.esibuy.common.exception.PedidoNoCompletadoException;
 import es.uclm.esibuy.common.exception.PedidoNotFoundException;
 import es.uclm.esibuy.common.exception.ProductNotFoundException;
+import es.uclm.esibuy.common.exception.ProductoExclusivoPremiumException;
 import es.uclm.esibuy.common.exception.ProductoNoDisponibleException;
 import es.uclm.esibuy.common.exception.RecursoCheckoutNoEncontradoException;
 import es.uclm.esibuy.common.exception.StockInsuficienteException;
 import es.uclm.esibuy.common.exception.UserNotFoundException;
+import es.uclm.esibuy.configuration.model.GeneralConfiguration;
+import es.uclm.esibuy.configuration.service.GeneralConfigurationService;
 import es.uclm.esibuy.orders.dto.CheckoutPaymentMethodDTO;
 import es.uclm.esibuy.orders.dto.CheckoutSummaryDTO;
 import es.uclm.esibuy.orders.dto.CreateOrderDTO;
@@ -48,6 +58,8 @@ import es.uclm.esibuy.orders.model.OrderPaymentStatus;
 import es.uclm.esibuy.orders.model.OrderShippingAddress;
 import es.uclm.esibuy.orders.model.OrderStatus;
 import es.uclm.esibuy.orders.repository.OrderRepository;
+import es.uclm.esibuy.products.event.ProductChangedEvent;
+import es.uclm.esibuy.products.event.ProductSnapshot;
 import es.uclm.esibuy.products.model.Product;
 import es.uclm.esibuy.products.repository.ProductRepository;
 import es.uclm.esibuy.products.service.ProductPricing;
@@ -59,13 +71,6 @@ import es.uclm.esibuy.users.model.ReservedAccounts;
 import es.uclm.esibuy.users.model.ShippingAddress;
 import es.uclm.esibuy.users.model.User;
 import es.uclm.esibuy.users.repository.UserRepository;
-
-import org.springframework.data.mongodb.core.FindAndModifyOptions;
-import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.stereotype.Service;
 
 @Service
 public class OrderService {
@@ -81,6 +86,7 @@ public class OrderService {
     private final MongoTemplate mongoTemplate;
     private final PaymentGateway paymentGateway;
     private final GeneralConfigurationService generalConfigurationService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public OrderService(
             UserRepository userRepository,
@@ -89,7 +95,8 @@ public class OrderService {
             OrderRepository orderRepository,
             MongoTemplate mongoTemplate,
             PaymentGateway paymentGateway,
-            GeneralConfigurationService generalConfigurationService) {
+            GeneralConfigurationService generalConfigurationService,
+            ApplicationEventPublisher eventPublisher) {
 
         this.userRepository = userRepository;
         this.cartRepository = cartRepository;
@@ -98,6 +105,7 @@ public class OrderService {
         this.mongoTemplate = mongoTemplate;
         this.paymentGateway = paymentGateway;
         this.generalConfigurationService = generalConfigurationService;
+        this.eventPublisher = eventPublisher;
     }
 
     public CheckoutSummaryDTO getCheckoutSummary(
@@ -193,31 +201,33 @@ public class OrderService {
         reserveStock(items);
 
         OrderPaymentMethod orderPaymentMethod = OrderPaymentMethod.from(paymentMethod);
-        boolean paymentAccepted;
 
-        try {
-            paymentAccepted = paymentGateway.charge(orderPaymentMethod, totalPrice);
-        } catch (RuntimeException exception) {
-            releaseStock(items, exception);
-            throw exception;
-        }
-
-        if (!paymentAccepted) {
-            PagoFallidoException paymentException = new PagoFallidoException();
-            releaseStock(items, paymentException);
-            throw paymentException;
-        }
-
-        Order order = new Order(
+        Order pendingOrder = savePendingOrder(new Order(
                 customerId,
                 items,
                 totalPrice,
                 OrderShippingAddress.from(shippingAddress),
                 orderPaymentMethod,
                 OrderStatus.PENDIENTE,
-                OrderPaymentStatus.PAGADO);
+                OrderPaymentStatus.PENDIENTE), items);
 
-        Order savedOrder = orderRepository.save(order);
+        boolean paymentAccepted;
+
+        try {
+            paymentAccepted = paymentGateway.charge(orderPaymentMethod, totalPrice);
+        } catch (RuntimeException exception) {
+            discardPendingOrder(pendingOrder, items, exception);
+            throw exception;
+        }
+
+        if (!paymentAccepted) {
+            PagoFallidoException paymentException = new PagoFallidoException();
+            discardPendingOrder(pendingOrder, items, paymentException);
+            throw paymentException;
+        }
+
+        pendingOrder.markAsPaid();
+        Order savedOrder = savePaidOrder(pendingOrder, items, orderPaymentMethod, totalPrice);
 
         for (OrderItem item : items) {
             cart.removeItem(item.productId());
@@ -231,6 +241,41 @@ public class OrderService {
                 savedOrder.getStatus(),
                 savedOrder.getCreatedAt(),
                 savedOrder.getPaymentStatus());
+    }
+
+    private Order savePendingOrder(Order order, List<OrderItem> items) {
+        try {
+            return orderRepository.save(order);
+        } catch (RuntimeException exception) {
+            PedidoNoCompletadoException failure = new PedidoNoCompletadoException(exception);
+            releaseStock(items, failure);
+            throw failure;
+        }
+    }
+
+    private Order savePaidOrder(
+            Order order,
+            List<OrderItem> items,
+            OrderPaymentMethod paymentMethod,
+            BigDecimal amount) {
+        try {
+            return orderRepository.save(order);
+        } catch (RuntimeException exception) {
+            PedidoNoCompletadoException failure = new PedidoNoCompletadoException(exception);
+            paymentGateway.refund(paymentMethod, amount);
+            discardPendingOrder(order, items, failure);
+            throw failure;
+        }
+    }
+
+    private void discardPendingOrder(Order pendingOrder, List<OrderItem> items, RuntimeException cause) {
+        try {
+            orderRepository.delete(pendingOrder);
+        } catch (RuntimeException exception) {
+            cause.addSuppressed(exception);
+        }
+
+        releaseStock(items, cause);
     }
 
     private OrderPricing calculatePricing(
@@ -334,9 +379,12 @@ public class OrderService {
                     "El pedido ya no se puede cancelar en su estado actual");
         }
 
-        restoreCancelledOrderStock(order.getItems());
+        List<ProductChangedEvent> restocked = restoreCancelledOrderStock(order.getItems());
         order.setStatus(OrderStatus.CANCELADO);
         orderRepository.save(order);
+
+        // Reponer unidades puede hacer que un producto vuelva a estar disponible
+        restocked.forEach(eventPublisher::publishEvent);
     }
 
     public ShippingTrackingDTO getShippingStatusHistory(String customerId, String orderId) {
@@ -714,6 +762,10 @@ public class OrderService {
             throw new ProductoNoDisponibleException();
         }
 
+        if (product.isPremiumOnly() && !premiumCustomer) {
+            throw new ProductoExclusivoPremiumException();
+        }
+
         if (product.getStock() < item.getQuantity()) {
             throw createInsufficientStockException(product);
         }
@@ -799,7 +851,9 @@ public class OrderService {
         }
     }
 
-    private void restoreCancelledOrderStock(List<OrderItem> items) {
+    private List<ProductChangedEvent> restoreCancelledOrderStock(List<OrderItem> items) {
+        List<ProductChangedEvent> restocked = new ArrayList<>();
+
         for (OrderItem item : items) {
             Product restoredProduct = mongoTemplate.findAndModify(
                     Query.query(Criteria.where("_id").is(item.productId())),
@@ -811,7 +865,13 @@ public class OrderService {
                 throw new IllegalStateException(
                         "No se pudo encontrar el producto para reponer el stock");
             }
+
+            // El producto devuelto ya tiene las unidades repuestas: el stock de antes se deduce de él
+            ProductSnapshot after = ProductSnapshot.of(restoredProduct);
+            restocked.add(new ProductChangedEvent(after.withStock(after.stock() - item.quantity()), after));
         }
+
+        return restocked;
     }
 
     private StockInsuficienteException createInsufficientStockException(Product product) {

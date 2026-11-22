@@ -26,8 +26,11 @@ public class ProductCatalogRepository {
     private static final String DISCOUNT_VALUE = "discountValue";
     private static final String PREMIUM_DISCOUNT_VALUE = "premiumDiscountValue";
     private static final String RATING_MISSING = "ratingMissing";
+    private static final String RATING_SORT_VALUE = "ratingSortValue";
     private static final String RATING = "rating";
+    private static final String REVIEW_COUNT = "reviewCount";
     private static final String ID = "_id";
+    private static final String IF_NULL = "$ifNull";
 
     private final MongoTemplate mongoTemplate;
 
@@ -86,6 +89,8 @@ public class ProductCatalogRepository {
             stored.add(Criteria.where("categoryIds").is(search.categoryId().trim()));
         }
         if (search.minRating() != null) {
+            // Sin valoraciones no hay nota, aunque el producto guarde una (Product.getRating())
+            stored.add(Criteria.where(REVIEW_COUNT).gt(0));
             stored.add(Criteria.where(RATING).gte(search.minRating()));
         }
         if (Boolean.TRUE.equals(search.inStock())) {
@@ -122,15 +127,21 @@ public class ProductCatalogRepository {
                 .append(PRICE_VALUE, toDecimal("$price"))
                 .append(DISCOUNT_VALUE, toDecimal("$discount"))
                 .append(PREMIUM_DISCOUNT_VALUE, toDecimal("$premiumDiscount"))
-                .append(RATING_MISSING, new Document("$cond", Arrays.asList(
-                        new Document("$eq", Arrays.asList(
-                                new Document("$ifNull", Arrays.asList("$rating", null)), null)),
-                        1,
-                        0))));
+                .append(RATING_MISSING, new Document("$cond", Arrays.asList(hasRating(), 0, 1)))
+                .append(RATING_SORT_VALUE, new Document("$cond", Arrays.asList(hasRating(), "$rating", null))));
+    }
+
+    // Solo cuenta la nota de un producto con valoraciones: sin ellas no tiene nota (Product.getRating())
+    private Document hasRating() {
+        return new Document("$and", Arrays.asList(
+                new Document("$gt", Arrays.asList(
+                        new Document(IF_NULL, Arrays.asList("$" + REVIEW_COUNT, 0)), 0)),
+                new Document("$ne", Arrays.asList(
+                        new Document(IF_NULL, Arrays.asList("$" + RATING, null)), null))));
     }
 
     private Document toDecimal(String field) {
-        return new Document("$toDecimal", new Document("$ifNull", Arrays.asList(field, 0)));
+        return new Document("$toDecimal", new Document(IF_NULL, Arrays.asList(field, 0)));
     }
 
     private Sort sort(String sort) {
@@ -141,8 +152,8 @@ public class ProductCatalogRepository {
         return switch (sort) {
             case "price-asc" -> Sort.by(Sort.Direction.ASC, PRICE_VALUE).and(byId);
             case "price-desc" -> Sort.by(Sort.Direction.DESC, PRICE_VALUE).and(byId);
-            case "rating-desc" -> Sort.by(RATING_MISSING).and(Sort.by(Sort.Direction.DESC, RATING)).and(byId);
-            case "rating-asc" -> Sort.by(RATING_MISSING).and(Sort.by(Sort.Direction.ASC, RATING)).and(byId);
+            case "rating-desc" -> Sort.by(RATING_MISSING).and(Sort.by(Sort.Direction.DESC, RATING_SORT_VALUE)).and(byId);
+            case "rating-asc" -> Sort.by(RATING_MISSING).and(Sort.by(Sort.Direction.ASC, RATING_SORT_VALUE)).and(byId);
             default -> byId;
         };
     }
