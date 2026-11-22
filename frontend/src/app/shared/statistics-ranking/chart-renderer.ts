@@ -6,14 +6,16 @@ import {
   CategoryScale,
   Chart,
   ChartConfiguration,
+  ChartType,
   DoughnutController,
   Legend,
   LinearScale,
+  Plugin,
   PolarAreaController,
   RadialLinearScale,
   Tooltip,
 } from 'chart.js';
-import { RankingChartType } from './ranking.model';
+import { RankingChartType, RankingReference } from './ranking.model';
 
 // Solo se registran las piezas que usa el ranking, para que el resto de Chart.js no entre en el bundle
 Chart.register(
@@ -29,6 +31,55 @@ Chart.register(
   Legend,
 );
 
+declare module 'chart.js' {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface PluginOptionsByType<TType extends ChartType> {
+    rankingReference?: RankingReference;
+  }
+}
+
+const REFERENCE_COLOR = '#e0607e';
+
+/**
+ * Dibuja el valor de referencia (por ejemplo, la media de la plataforma): una línea discontinua
+ * en las barras y un círculo discontinuo en el gráfico polar, con su etiqueta.
+ */
+const referencePlugin: Plugin = {
+  id: 'rankingReference',
+  afterDatasetsDraw(chart, _args, options: Partial<RankingReference>) {
+    if (typeof options?.value !== 'number') {
+      return;
+    }
+    const { ctx, chartArea } = chart;
+    const text = `${options.label ?? ''} ${options.value.toLocaleString('es-ES', { maximumFractionDigits: 2 })}`.trim();
+    ctx.save();
+    ctx.strokeStyle = REFERENCE_COLOR;
+    ctx.fillStyle = REFERENCE_COLOR;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 5]);
+    ctx.font = '600 11px Inter, "Segoe UI", Roboto, sans-serif';
+
+    const radial = chart.scales['r'] as RadialLinearScale | undefined;
+    if (radial) {
+      const radius = radial.getDistanceFromCenterForValue(options.value);
+      ctx.beginPath();
+      ctx.arc(radial.xCenter, radial.yCenter, radius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.textAlign = 'center';
+      ctx.fillText(text, radial.xCenter, radial.yCenter - radius - 6);
+    } else if (chart.scales['x']) {
+      const x = chart.scales['x'].getPixelForValue(options.value);
+      ctx.beginPath();
+      ctx.moveTo(x, chartArea.top);
+      ctx.lineTo(x, chartArea.bottom);
+      ctx.stroke();
+      ctx.textAlign = x > chartArea.right - 90 ? 'right' : 'left';
+      ctx.fillText(text, x + (ctx.textAlign === 'right' ? -6 : 6), chartArea.top + 11);
+    }
+    ctx.restore();
+  },
+};
+
 /** Lo que necesita el ranking para pintar un gráfico, sin depender de la librería. */
 export interface RankingChartData {
   type: RankingChartType;
@@ -37,6 +88,8 @@ export interface RankingChartData {
   metricLabel: string;
   formatValue: (value: number) => string;
   animate: boolean;
+  reference?: RankingReference;
+  scaleMax?: number;
 }
 
 export interface RenderedChart {
@@ -80,9 +133,12 @@ export function buildChartConfiguration(data: RankingChartData): ChartConfigurat
     },
   };
 
+  const referencePlugins = data.reference ? [referencePlugin] : [];
+
   if (data.type === 'bar') {
     return {
       type: 'bar',
+      plugins: referencePlugins,
       data: {
         labels: data.labels,
         datasets: [{
@@ -100,10 +156,11 @@ export function buildChartConfiguration(data: RankingChartData): ChartConfigurat
         responsive: true,
         maintainAspectRatio: false,
         animation,
-        plugins: { legend: { display: false }, tooltip },
+        plugins: { legend: { display: false }, tooltip, rankingReference: data.reference },
         scales: {
           x: {
             beginAtZero: true,
+            max: data.scaleMax,
             grid: { color: GRID_COLOR },
             border: { display: false },
             ticks: { color: TEXT_COLOR, callback: (value) => data.formatValue(Number(value)) },
@@ -166,6 +223,7 @@ export function buildChartConfiguration(data: RankingChartData): ChartConfigurat
 
   const polar: ChartConfiguration<'polarArea'> = {
     type: 'polarArea',
+    plugins: referencePlugins,
     data: {
       labels: data.labels,
       datasets: [{
@@ -178,9 +236,11 @@ export function buildChartConfiguration(data: RankingChartData): ChartConfigurat
     },
     options: {
       ...common,
+      plugins: { ...common.plugins, rankingReference: data.reference },
       scales: {
         r: {
           beginAtZero: true,
+          max: data.scaleMax,
           grid: { color: GRID_COLOR },
           ticks: { display: false },
         },
