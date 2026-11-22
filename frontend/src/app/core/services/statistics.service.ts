@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { Observable, map } from 'rxjs';
+import { Observable, map, of } from 'rxjs';
 
 /** Una fila del ranking de ventas (GET /api/admin/statistics/sales). */
 export interface ProductSales {
@@ -10,6 +10,32 @@ export interface ProductSales {
   sellerName: string | null;
   unitsSold: number;
   revenue: number;
+}
+
+/** Un producto del ranking de mejor valorados. */
+export interface ProductRating {
+  productId: string;
+  productName: string;
+  sellerId: string | null;
+  sellerName: string | null;
+  rating: number;
+  reviewCount: number;
+}
+
+/** Un vendedor del ranking: la media de las medias de sus productos valorados. */
+export interface SellerRating {
+  sellerId: string;
+  sellerName: string | null;
+  averageRating: number;
+  ratedProducts: number;
+}
+
+/** GET /api/admin/statistics/ratings */
+export interface RatingStatistics {
+  topProducts: ProductRating[];
+  topSellers: SellerRating[];
+  platformAverage: number | null;
+  minimumReviews: number;
 }
 
 type ProductSalesResponse = Omit<ProductSales, 'sellerId' | 'sellerName' | 'revenue'> & {
@@ -35,5 +61,9 @@ export class StatisticsService {
         // El backend manda un BigDecimal: se acepta como número o como texto
         revenue: Number(row.revenue),
       }))));
+  }
+
+  getRatings(): Observable<RatingStatistics> {
+    return of({ topProducts: [], topSellers: [], platformAverage: null, minimumReviews: 0 });
   }
 }

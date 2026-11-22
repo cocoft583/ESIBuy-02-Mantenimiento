@@ -13,7 +13,7 @@ import {
   RadialLinearScale,
   Tooltip,
 } from 'chart.js';
-import { RankingChartType } from './ranking.model';
+import { RankingChartType, RankingReference } from './ranking.model';
 
 // Solo se registran las piezas que usa el ranking, para que el resto de Chart.js no entre en el bundle
 Chart.register(
@@ -37,6 +37,8 @@ export interface RankingChartData {
   metricLabel: string;
   formatValue: (value: number) => string;
   animate: boolean;
+  reference?: RankingReference;
+  scaleMax?: number;
 }
 
 export interface RenderedChart {

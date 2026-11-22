@@ -15,6 +15,7 @@ import {
   RANKING_VIEW_LABELS,
   RankingChartType,
   RankingMetric,
+  RankingReference,
   RankingRow,
   RankingValueFormat,
   RankingView,
@@ -59,6 +60,7 @@ export class StatisticsRanking {
   readonly chartTypes = input<RankingChartType[]>(['bar', 'doughnut', 'polarArea']);
   readonly initialView = input<RankingView>('both');
   readonly emptyMessage = input('Todavía no hay datos.');
+  readonly reference = input<RankingReference | null>(null);
 
   private readonly renderer = inject(ChartRenderer);
   private readonly canvasRef = viewChild<ElementRef<HTMLCanvasElement>>('chartCanvas');
