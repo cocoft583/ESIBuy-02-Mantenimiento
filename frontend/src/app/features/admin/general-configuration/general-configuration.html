@@ -63,6 +63,16 @@
           </div>
 
           <fieldset class="registration-setting">
+            <legend>Estadísticas</legend>
+            <div class="field ranking-field">
+              <label for="minimoValoracionesRanking">Mínimo de valoraciones para el ranking</label>
+              <input id="minimoValoracionesRanking" name="minimoValoracionesRanking" type="number" min="1" max="1000"
+                step="1" [(ngModel)]="form.minimoValoracionesRanking" [disabled]="saving()" />
+              <small>Un producto necesita al menos estas valoraciones para salir entre los mejor valorados.</small>
+            </div>
+          </fieldset>
+
+          <fieldset class="registration-setting">
             <legend>Registro de usuarios</legend>
             <label class="toggle-label" for="registroHabilitado">
               <input id="registroHabilitado" name="registroHabilitado" type="checkbox"

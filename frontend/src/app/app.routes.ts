@@ -46,6 +46,12 @@ export const routes: Routes = [
   { path: 'admin/productos', component: AdminProductList, canActivate: [webOnlyGuard, authGuard, roleGuard('ADMIN')] },
   { path: 'admin/products', redirectTo: 'admin/productos', pathMatch: 'full' },
   { path: 'admin/configuracion', component: GeneralConfigurationPage, canActivate: [webOnlyGuard, authGuard, roleGuard('ADMIN')] },
+  {
+    // Bajo demanda: así Chart.js solo se descarga al abrir las estadísticas
+    path: 'admin/estadisticas',
+    loadComponent: () => import('./features/admin/admin-statistics/admin-statistics').then((m) => m.AdminStatistics),
+    canActivate: [webOnlyGuard, authGuard, roleGuard('ADMIN')],
+  },
 
   { path: 'admin', redirectTo: 'admin/usuarios', pathMatch: 'full' },
   { path: 'admin/users', redirectTo: 'admin/usuarios', pathMatch: 'full' },

@@ -2,9 +2,12 @@ package es.uclm.esibuy.statistics.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import org.springframework.stereotype.Service;
 
@@ -14,7 +17,9 @@ import es.uclm.esibuy.products.repository.ProductRepository;
 import es.uclm.esibuy.statistics.dto.ProductRatingDTO;
 import es.uclm.esibuy.statistics.dto.ProductSalesDTO;
 import es.uclm.esibuy.statistics.dto.RatingStatisticsDTO;
+import es.uclm.esibuy.statistics.dto.SalesStatisticsDTO;
 import es.uclm.esibuy.statistics.dto.SellerRatingDTO;
+import es.uclm.esibuy.statistics.model.StatisticsScope;
 import es.uclm.esibuy.statistics.repository.ProductRatingRow;
 import es.uclm.esibuy.statistics.repository.ProductSalesRow;
 import es.uclm.esibuy.statistics.repository.SellerRatingRow;
@@ -61,6 +66,73 @@ public class StatisticsService {
         return rows.stream()
                 .map(row -> toDto(row, products.get(row.productId()), sellerNames))
                 .toList();
+    }
+
+    /**
+     * Ranking de ventas según el ámbito. En PLATAFORMA es el de {@link #getTopSellingProducts()}.
+     * En VENDEDOR son los 10 productos más vendidos y los 10 menos vendidos del vendedor,
+     * incluidos los que no se han vendido nunca (RF-EST-07, 08). El {@code sellerId} tiene que
+     * salir siempre de la sesión, nunca de un parámetro de la petición.
+     */
+    public SalesStatisticsDTO getSales(StatisticsScope scope, String sellerId) {
+        Objects.requireNonNull(scope, "El ámbito es obligatorio");
+
+        if (scope == StatisticsScope.PLATAFORMA) {
+            return new SalesStatisticsDTO(scope, getTopSellingProducts(), List.of());
+        }
+
+        return getSellerSales(sellerId);
+    }
+
+    public SalesStatisticsDTO getSellerSales(String sellerId) {
+        if (sellerId == null || sellerId.isBlank()) {
+            throw new IllegalArgumentException("El identificador del vendedor es obligatorio");
+        }
+
+        // Los productos del vendedor dan el nombre actual y los que no tienen ninguna venta
+        Map<String, Product> products = new LinkedHashMap<>();
+        productRepository.findAllBySellerId(sellerId)
+                .forEach(product -> products.put(product.getId(), product));
+
+        Map<String, ProductSalesRow> rows = new LinkedHashMap<>();
+        statisticsRepository.findSellerProductSales(sellerId, products.keySet())
+                .forEach(row -> rows.put(row.productId(), row));
+        products.values().forEach(product -> rows.computeIfAbsent(product.getId(),
+                id -> new ProductSalesRow(id, product.getName(), sellerId, 0, BigDecimal.ZERO)));
+
+        String sellerName = resolveSellerName(sellerId);
+        List<ProductSalesDTO> sales = rows.values().stream()
+                .map(row -> new ProductSalesDTO(
+                        row.productId(),
+                        resolveProductName(row, products.get(row.productId())),
+                        sellerId,
+                        sellerName,
+                        row.unitsSold(),
+                        row.revenue().setScale(2, RoundingMode.HALF_UP)))
+                .toList();
+
+        // Mismo desempate que el ranking de la plataforma: el top es siempre el mismo (RN-01)
+        Comparator<ProductSalesDTO> fewestFirst = Comparator.comparingLong(ProductSalesDTO::unitsSold)
+                .thenComparing(ProductSalesDTO::revenue)
+                .thenComparing(ProductSalesDTO::productId);
+        Comparator<ProductSalesDTO> mostFirst = Comparator.comparingLong(ProductSalesDTO::unitsSold).reversed()
+                .thenComparing(ProductSalesDTO::revenue, Comparator.reverseOrder())
+                .thenComparing(ProductSalesDTO::productId);
+
+        List<ProductSalesDTO> topSold = sales.stream()
+                .filter(product -> product.unitsSold() > 0)
+                .sorted(mostFirst)
+                .limit(RANKING_SIZE)
+                .toList();
+
+        // Un producto ya eliminado no se puede mejorar ni retirar: solo entran los que siguen existiendo
+        List<ProductSalesDTO> leastSold = sales.stream()
+                .filter(product -> products.containsKey(product.productId()))
+                .sorted(fewestFirst)
+                .limit(RANKING_SIZE)
+                .toList();
+
+        return new SalesStatisticsDTO(StatisticsScope.VENDEDOR, topSold, leastSold);
     }
 
     /**

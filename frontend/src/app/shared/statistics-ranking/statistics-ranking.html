@@ -1,0 +1,105 @@
+<section class="ranking-card" [attr.aria-labelledby]="headingId">
+  <header class="ranking-header">
+    <div class="ranking-heading">
+      <h2 [id]="headingId">{{ heading() }}</h2>
+      @if (description(); as text) {
+      <p class="ranking-description">{{ text }}</p>
+      }
+      @if (referenceNote(); as note) {
+      <p class="reference-note"><span class="reference-swatch" aria-hidden="true"></span>{{ note }}</p>
+      }
+    </div>
+
+    @if (rows().length > 0) {
+    <div class="ranking-controls">
+      @if (metrics().length > 1) {
+      <label class="ranking-metric-field">
+        <span>Mostrar</span>
+        <select class="ranking-metric" (change)="selectMetric($any($event.target).value)">
+          @for (metric of metrics(); track metric.key) {
+          <option [value]="metric.key" [selected]="metric.key === selectedMetricKey()">{{ metric.label }}</option>
+          }
+        </select>
+      </label>
+      }
+
+      <div class="segmented ranking-view-toggle" role="group" aria-label="Forma de ver el ranking">
+        @for (option of views; track option) {
+        <button type="button" [class.is-active]="view() === option" [attr.aria-pressed]="view() === option"
+          (click)="view.set(option)">{{ viewLabels[option] }}</button>
+        }
+      </div>
+    </div>
+    }
+  </header>
+
+  @if (rows().length === 0) {
+  <p class="ranking-empty">{{ emptyMessage() }}</p>
+  } @else {
+  <div class="ranking-body" [class.is-split]="view() === 'both'">
+    @if (showChart()) {
+    <div class="ranking-chart-panel">
+      @if (chartTypes().length > 1) {
+      <div class="segmented segmented--small ranking-chart-type" role="group" aria-label="Tipo de gráfico">
+        @for (type of chartTypes(); track type) {
+        <button type="button" [class.is-active]="chartType() === type" [attr.aria-pressed]="chartType() === type"
+          (click)="chartType.set(type)">{{ chartLabels[type] }}</button>
+        }
+      </div>
+      }
+      <div class="ranking-canvas-wrapper" [class.is-bar]="chartType() === 'bar'"
+        [style.--bar-rows]="rows().length">
+        <canvas #chartCanvas class="ranking-canvas" role="img" [attr.aria-label]="chartSummary()"></canvas>
+      </div>
+    </div>
+    }
+
+    @if (showTable()) {
+    <div class="ranking-table-wrapper">
+      <table class="ranking-table">
+        <caption class="visually-hidden">{{ heading() }}</caption>
+        <thead>
+          <tr>
+            <th scope="col" class="rank-column">#</th>
+            <th scope="col">{{ labelHeader() }}</th>
+            <th scope="col">{{ detailHeader() }}</th>
+            @for (metric of metrics(); track metric.key) {
+            <th scope="col" class="value-column" [class.is-selected]="metric.key === selectedMetric()?.key">
+              {{ metric.label }}
+            </th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of rows(); track row.id; let index = $index) {
+          <tr [style.--row-index]="index">
+            <td class="rank-column">
+              <span class="rank-badge" [class.is-gold]="index === 0" [class.is-silver]="index === 1"
+                [class.is-bronze]="index === 2">{{ index + 1 }}</span>
+            </td>
+            <th scope="row" class="row-label">{{ row.label }}</th>
+            <td class="row-detail">{{ row.detail || '—' }}</td>
+            @for (metric of metrics(); track metric.key) {
+            <td class="value-column" [class.is-selected]="metric.key === selectedMetric()?.key">
+              <span class="value-text">{{ format(row.values[metric.key] ?? 0, metric) }}</span>
+              @if (metric.key === selectedMetric()?.key && deltas()[index]; as delta) {
+              <span class="reference-delta" [class.is-above]="delta.direction === 'above'"
+                [class.is-below]="delta.direction === 'below'"
+                [attr.title]="'Diferencia con ' + activeReference()?.label?.toLowerCase()">{{ delta.text }}</span>
+              }
+              @if (metric.key === selectedMetric()?.key) {
+              <span class="share-track" aria-hidden="true">
+                <span class="share-fill" [style.width]="shares()[index] + '%'"></span>
+              </span>
+              }
+            </td>
+            }
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    }
+  </div>
+  }
+</section>
