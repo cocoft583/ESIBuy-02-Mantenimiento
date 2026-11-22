@@ -29,8 +29,13 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.data.mongodb.gridfs.GridFsTemplate;
 import org.bson.types.ObjectId;
 import org.springframework.web.server.ResponseStatusException;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import es.uclm.esibuy.users.model.ClientProfile;
+import es.uclm.esibuy.users.model.CustomerType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -842,5 +847,119 @@ class ProductServiceTest {
                                 new BigDecimal(PRODUCT_PRICE), null, null, null, false, sellerId));
                 product.setId(PRODUCT_ID);
                 return product;
+        }
+
+        // HU16 (T16.1): el catálogo y el detalle enseñan los exclusivos a todos (pregunta 9: se
+        // muestran bloqueados) y dicen con «purchasable» si el cliente de la sesión puede comprarlo.
+
+        private static final String VIEWER_ID = "viewer-id";
+
+        @AfterEach
+        void clearSecurityContext() {
+                SecurityContextHolder.clearContext();
+        }
+
+        private void loginAsClient(CustomerType type) {
+                AuthenticatedUserPrincipal principal =
+                                new AuthenticatedUserPrincipal(VIEWER_ID, CLIENT_EMAIL, UserRole.CLIENT, true);
+                SecurityContextHolder.getContext().setAuthentication(
+                                new UsernamePasswordAuthenticationToken(principal, null, List.of()));
+                User viewer = org.mockito.Mockito.mock(User.class);
+                org.mockito.Mockito.lenient().when(viewer.getClientProfile()).thenReturn(new ClientProfile(null, type));
+                // lenient: el servicio también busca por id el nombre del vendedor
+                org.mockito.Mockito.lenient().when(userRepository.findById(VIEWER_ID)).thenReturn(Optional.of(viewer));
+        }
+
+        private Product exclusiveCatalogProduct(String id) {
+                Product product = catalogProduct(id, SELLER_ID);
+                product.setPremiumOnly(true);
+                return product;
+        }
+
+        private CatalogPageResponse catalogWithExclusiveAndRegular() {
+                CatalogSearch search = new CatalogSearch(null, null, null, null, null, null, null, null, 0, 12);
+                when(productCatalogRepository.search(search)).thenReturn(new CatalogResult(
+                                List.of(exclusiveCatalogProduct("exclusive"), catalogProduct("regular", SELLER_ID)), 2));
+                when(productCatalogRepository.findMaxAvailablePrice()).thenReturn(new BigDecimal("100"));
+                org.mockito.Mockito.lenient().when(userRepository.findAllById(any())).thenReturn(List.of());
+                return productService.getPublicCatalog(search);
+        }
+
+        private ProductResponse byId(CatalogPageResponse page, String id) {
+                return page.content().stream().filter(p -> p.id().equals(id)).findFirst().orElseThrow();
+        }
+
+        @Test
+        @DisplayName("HU16: un cliente Estándar ve el exclusivo en el catálogo, pero no se puede comprar")
+        void standardClientSeesExclusiveProductAsNotPurchasable() {
+                loginAsClient(CustomerType.STANDARD);
+
+                CatalogPageResponse page = catalogWithExclusiveAndRegular();
+
+                assertEquals(2, page.content().size());
+                assertTrue(byId(page, "exclusive").premiumOnly());
+                assertFalse(byId(page, "exclusive").purchasable());
+                assertTrue(byId(page, "regular").purchasable());
+        }
+
+        @Test
+        @DisplayName("HU16: un cliente Premium puede comprar el exclusivo del catálogo")
+        void premiumClientCanPurchaseExclusiveProductFromCatalog() {
+                loginAsClient(CustomerType.PREMIUM);
+
+                CatalogPageResponse page = catalogWithExclusiveAndRegular();
+
+                assertTrue(byId(page, "exclusive").purchasable());
+                assertTrue(byId(page, "regular").purchasable());
+        }
+
+        @Test
+        @DisplayName("HU16: sin sesión el exclusivo se ve en el catálogo, pero no se puede comprar")
+        void anonymousVisitorSeesExclusiveProductAsNotPurchasable() {
+                CatalogPageResponse page = catalogWithExclusiveAndRegular();
+
+                assertEquals(2, page.content().size());
+                assertFalse(byId(page, "exclusive").purchasable());
+                assertTrue(byId(page, "regular").purchasable());
+        }
+
+        @Test
+        @DisplayName("HU16: el catálogo de cliente también marca el exclusivo según el tipo de cliente")
+        void customerCatalogMarksExclusiveProductForStandardClient() {
+                loginAsClient(CustomerType.STANDARD);
+                when(productRepository.findAllByAvailableTrueAndStockGreaterThan(0))
+                                .thenReturn(List.of(exclusiveCatalogProduct("exclusive")));
+
+                List<ProductResponse> result = productService.getAvailableProducts();
+
+                assertEquals(1, result.size());
+                assertFalse(result.get(0).purchasable());
+        }
+
+        @Test
+        @DisplayName("HU16: el detalle de un exclusivo no se puede comprar para un Estándar y sí para un Premium")
+        void productDetailIsPurchasableOnlyForPremiumClients() {
+                Product product = exclusiveCatalogProduct(PRODUCT_ID);
+                when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
+                AuthenticatedUserPrincipal viewer =
+                                new AuthenticatedUserPrincipal(VIEWER_ID, CLIENT_EMAIL, UserRole.CLIENT, true);
+
+                loginAsClient(CustomerType.STANDARD);
+                assertFalse(productService.getProductForClientOrManagement(PRODUCT_ID, viewer).purchasable());
+
+                loginAsClient(CustomerType.PREMIUM);
+                assertTrue(productService.getProductForClientOrManagement(PRODUCT_ID, viewer).purchasable());
+        }
+
+        @Test
+        @DisplayName("HU16: forCustomer solo bloquea los exclusivos a quien no es Premium")
+        void forCustomerBlocksOnlyExclusiveProductsForNonPremiumClients() {
+                ProductResponse exclusive = ProductResponse.from(exclusiveCatalogProduct("exclusive"));
+                ProductResponse regular = ProductResponse.from(catalogProduct("regular", SELLER_ID));
+
+                assertFalse(exclusive.forCustomer(false).purchasable());
+                assertTrue(exclusive.forCustomer(true).purchasable());
+                assertTrue(regular.forCustomer(false).purchasable());
+                assertTrue(exclusive.forCustomer(false).premiumOnly());
         }
 }
