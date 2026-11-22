@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 
 import org.bson.Document;
@@ -24,6 +25,7 @@ public class MongoStatisticsRepository implements StatisticsRepository {
 
     private static final String ORDERS_COLLECTION = "pedidos";
     private static final String PRODUCT_ID = "items.productoId";
+    private static final String SELLER_LINE = "items.vendedorId";
     private static final String UNITS_SOLD = "unitsSold";
     private static final String REVENUE = "revenue";
     private static final String SUBTOTAL_VALUE = "subtotalValue";
@@ -44,28 +46,69 @@ public class MongoStatisticsRepository implements StatisticsRepository {
 
     @Override
     public List<ProductSalesRow> findTopSellingProducts(int limit) {
-        Aggregation aggregation = Aggregation.newAggregation(
-                // Solo cuentan las compras pagadas que no se han cancelado (RN-03)
-                Aggregation.match(Criteria.where("estadoPago").is(OrderPaymentStatus.PAGADO.name())
-                        .and("estado").ne(OrderStatus.CANCELADO.name())),
-                Aggregation.unwind("items"),
-                // Una línea antigua sin producto no se puede atribuir a ninguno: agruparía en una
-                // fila con identificador nulo
-                Aggregation.match(Criteria.where(PRODUCT_ID).nin(Arrays.asList(null, ""))),
-                subtotalAsNumber(),
-                Aggregation.group(PRODUCT_ID)
-                        .first("items.nombre").as("productName")
-                        // El máximo ignora los nulos: se queda con el vendedor si alguna línea lo guarda
-                        .max("items.vendedorId").as("sellerId")
-                        .sum("items.cantidad").as(UNITS_SOLD)
-                        .sum(SUBTOTAL_VALUE).as(REVENUE),
-                // El desempate por identificador hace que el top sea siempre el mismo (RN-01)
-                Aggregation.sort(Sort.by(Sort.Direction.DESC, UNITS_SOLD)
-                        .and(Sort.by(Sort.Direction.DESC, REVENUE))
-                        .and(Sort.by(Sort.Direction.ASC, ID))),
-                Aggregation.limit(limit));
+        List<AggregationOperation> operations = new ArrayList<>(salesByProduct(paidAndNotCancelled(), null));
+        operations.add(Aggregation.limit(limit));
 
-        return mongoTemplate.aggregate(aggregation, ORDERS_COLLECTION, Document.class)
+        return aggregateSales(operations);
+    }
+
+    @Override
+    public List<ProductSalesRow> findSellerProductSales(String sellerId, Collection<String> sellerProductIds) {
+        List<String> productIds = sellerProductIds == null ? List.of() : List.copyOf(sellerProductIds);
+
+        // Antes de desenrollar se descartan los pedidos en los que el vendedor no tiene ninguna línea
+        Criteria orders = paidAndNotCancelled().orOperator(
+                Criteria.where(SELLER_LINE).is(sellerId),
+                Criteria.where(PRODUCT_ID).in(productIds));
+
+        // La línea es del vendedor si lo guarda; si no guarda ninguno (pedidos antiguos), se
+        // decide por el producto. Una línea de otro vendedor nunca cuenta, aunque el producto
+        // haya cambiado de manos
+        Criteria lines = new Criteria().orOperator(
+                Criteria.where(SELLER_LINE).is(sellerId),
+                new Criteria().andOperator(
+                        Criteria.where(SELLER_LINE).in(Arrays.asList(null, "")),
+                        Criteria.where(PRODUCT_ID).in(productIds)));
+
+        return aggregateSales(salesByProduct(orders, lines));
+    }
+
+    /** Solo cuentan las compras pagadas que no se han cancelado (RN-03). */
+    private Criteria paidAndNotCancelled() {
+        return Criteria.where("estadoPago").is(OrderPaymentStatus.PAGADO.name())
+                .and("estado").ne(OrderStatus.CANCELADO.name());
+    }
+
+    /**
+     * Agrupa por producto las líneas de los pedidos que cumplen {@code orders} y, si se indica,
+     * {@code lines}, ordenadas de más a menos vendidas.
+     */
+    private List<AggregationOperation> salesByProduct(Criteria orders, Criteria lines) {
+        List<AggregationOperation> operations = new ArrayList<>();
+        operations.add(Aggregation.match(orders));
+        operations.add(Aggregation.unwind("items"));
+        // Una línea antigua sin producto no se puede atribuir a ninguno: agruparía en una
+        // fila con identificador nulo
+        operations.add(Aggregation.match(Criteria.where(PRODUCT_ID).nin(Arrays.asList(null, ""))));
+        if (lines != null) {
+            operations.add(Aggregation.match(lines));
+        }
+        operations.add(subtotalAsNumber());
+        operations.add(Aggregation.group(PRODUCT_ID)
+                .first("items.nombre").as("productName")
+                // El máximo ignora los nulos: se queda con el vendedor si alguna línea lo guarda
+                .max(SELLER_LINE).as("sellerId")
+                .sum("items.cantidad").as(UNITS_SOLD)
+                .sum(SUBTOTAL_VALUE).as(REVENUE));
+        // El desempate por identificador hace que el top sea siempre el mismo (RN-01)
+        operations.add(Aggregation.sort(Sort.by(Sort.Direction.DESC, UNITS_SOLD)
+                .and(Sort.by(Sort.Direction.DESC, REVENUE))
+                .and(Sort.by(Sort.Direction.ASC, ID))));
+        return operations;
+    }
+
+    private List<ProductSalesRow> aggregateSales(List<AggregationOperation> operations) {
+        return mongoTemplate.aggregate(Aggregation.newAggregation(operations), ORDERS_COLLECTION, Document.class)
                 .getMappedResults().stream()
                 .map(this::toRow)
                 .toList();
