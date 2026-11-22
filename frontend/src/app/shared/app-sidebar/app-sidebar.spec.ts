@@ -43,6 +43,15 @@ describe('AppSidebarComponent', () => {
 
   afterEach(() => localStorage.clear());
 
+  it('el menú de administración enlaza las estadísticas', () => {
+    create();
+    component.variant = 'admin';
+    fixture.detectChanges();
+
+    const link = fixture.nativeElement.querySelector('a[href="/admin/estadisticas"]') as HTMLAnchorElement | null;
+    expect(link?.textContent?.trim()).toBe('Estadísticas');
+  });
+
   it('en escritorio recupera la barra plegada que se guardó', () => {
     simulateViewport(false);
     localStorage.setItem('client-sidebar-collapsed', 'true');

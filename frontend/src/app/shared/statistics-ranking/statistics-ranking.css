@@ -1,0 +1,337 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.ranking-card {
+  padding: 22px;
+  border: 1px solid #d8e5ec;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 10px 26px rgb(16 44 64 / 6%);
+  animation: ranking-rise .55s cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.ranking-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px 20px;
+  margin-bottom: 18px;
+}
+
+.ranking-heading h2 {
+  margin: 0;
+  color: #102c40;
+  font-size: 18px;
+  font-weight: 760;
+  letter-spacing: -.3px;
+}
+
+.ranking-description {
+  margin: 5px 0 0;
+  color: #607887;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.ranking-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.ranking-metric-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #496477;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.ranking-metric {
+  min-height: 34px;
+  padding: 0 30px 0 11px;
+  border: 1px solid #d2e0e9;
+  border-radius: 9px;
+  background: #f7fafc;
+  color: #173d52;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.ranking-metric:focus-visible,
+.segmented button:focus-visible {
+  outline: 2px solid #22b892;
+  outline-offset: 2px;
+}
+
+/* Botones de opción unidos, con la opción activa resaltada */
+.segmented {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid #d2e0e9;
+  border-radius: 10px;
+  background: #f2f7f9;
+}
+
+.segmented button {
+  min-height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #496477;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 680;
+  cursor: pointer;
+  transition: background .2s ease, color .2s ease, box-shadow .2s ease;
+}
+
+.segmented button:hover:not(.is-active) {
+  color: #117761;
+}
+
+.segmented button.is-active {
+  background: #102c40;
+  color: #fff;
+  box-shadow: 0 4px 10px rgb(16 44 64 / 18%);
+}
+
+.segmented--small button {
+  min-height: 24px;
+  padding: 0 10px;
+  font-size: 11.5px;
+}
+
+.ranking-empty {
+  margin: 0;
+  padding: 26px 18px;
+  border: 1px dashed #c9dbe4;
+  border-radius: 14px;
+  background: #f7fafc;
+  color: #607887;
+  font-size: 13px;
+  text-align: center;
+}
+
+.ranking-body {
+  display: grid;
+  gap: 20px;
+}
+
+/* Gráfico y tabla en paralelo solo si la tarjeta es ancha; si no, uno debajo del otro */
+.ranking-card {
+  container-type: inline-size;
+}
+
+@container (min-width: 900px) {
+  .ranking-body.is-split {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    align-items: start;
+  }
+}
+
+.ranking-chart-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #e3edf2;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fbfdfe 0%, #f4f9fb 100%);
+}
+
+.ranking-chart-type {
+  align-self: flex-start;
+}
+
+.ranking-canvas-wrapper {
+  position: relative;
+  height: 320px;
+}
+
+/* En barras horizontales la altura crece con el número de filas */
+.ranking-canvas-wrapper.is-bar {
+  height: max(220px, calc(var(--bar-rows, 10) * 38px + 40px));
+}
+
+.ranking-table-wrapper {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.ranking-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+
+.ranking-table thead th {
+  padding: 0 12px 10px;
+  border-bottom: 1px solid #e3edf2;
+  color: #607887;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: .4px;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ranking-table thead th.is-selected {
+  color: #117761;
+}
+
+.ranking-table tbody tr {
+  animation: ranking-row-in .45s cubic-bezier(.2, .8, .2, 1) both;
+  animation-delay: calc(var(--row-index, 0) * 45ms + 120ms);
+}
+
+.ranking-table tbody tr:hover {
+  background: #f5faf9;
+}
+
+.ranking-table td,
+.ranking-table tbody th {
+  padding: 11px 12px;
+  border-bottom: 1px solid #eef4f7;
+  color: #173d52;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.ranking-table tbody tr:last-child td,
+.ranking-table tbody tr:last-child th {
+  border-bottom: 0;
+}
+
+.rank-column {
+  width: 48px;
+}
+
+.rank-badge {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #eef4f7;
+  color: #496477;
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.rank-badge.is-gold {
+  background: linear-gradient(135deg, #ffe29a, #f2b23a);
+  color: #6d4708;
+}
+
+.rank-badge.is-silver {
+  background: linear-gradient(135deg, #eef2f5, #c3ced6);
+  color: #3c4f5c;
+}
+
+.rank-badge.is-bronze {
+  background: linear-gradient(135deg, #f6d2b0, #d48a4f);
+  color: #5e3214;
+}
+
+.row-label {
+  min-width: 150px;
+  font-weight: 700;
+}
+
+.row-detail {
+  color: #607887 !important;
+}
+
+.value-column {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.value-column.is-selected {
+  min-width: 120px;
+}
+
+.value-column.is-selected .value-text {
+  color: #102c40;
+  font-weight: 760;
+}
+
+.share-track {
+  display: block;
+  height: 5px;
+  margin-top: 6px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: #e8f1f4;
+}
+
+.share-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #1c5360, #22b892);
+  transform-origin: left center;
+  transition: width .6s cubic-bezier(.2, .8, .2, 1);
+  animation: share-grow .9s cubic-bezier(.2, .8, .2, 1) both;
+  animation-delay: calc(var(--row-index, 0) * 45ms + 200ms);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@keyframes ranking-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+@keyframes ranking-row-in {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+}
+
+@keyframes share-grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@media (max-width: 560px) {
+  .ranking-card {
+    padding: 16px;
+  }
+
+  .ranking-canvas-wrapper {
+    height: 260px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ranking-card,
+  .ranking-table tbody tr,
+  .share-fill {
+    animation: none;
+    transition: none;
+  }
+}
