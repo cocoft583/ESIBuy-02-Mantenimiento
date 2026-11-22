@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 import { WishlistInfo, WishlistService } from '../../../core/services/wishlist.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { CartService } from '../../../core/services/cart.service';
+import { insufficientStockMessage } from '../../../core/utils/cart-error-message';
 import { AuthService } from '../../../core/services/auth.service';
 import { ProductItem } from '../../../core/services/products.service';
 import { AppSidebarComponent } from '../../../shared/app-sidebar/app-sidebar';
@@ -87,8 +88,8 @@ export class ClientWishlist implements OnInit {
         next: () => {
           this.toastService.show('Producto añadido al carrito', 'success');
         },
-        error: () => {
-          this.toastService.show('Error al añadir producto al carrito', 'error');
+        error: (error: unknown) => {
+          this.toastService.show(insufficientStockMessage(error) ?? 'Error al añadir producto al carrito', 'error');
         },
       })
       .add(() => this.addingProducts.update((states) => ({ ...states, [product.id]: false })));
