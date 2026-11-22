@@ -41,6 +41,7 @@ export interface RankingChartData {
 
 export interface RenderedChart {
   update(data: RankingChartData): void;
+  replay(): void;
   destroy(): void;
 }
 
@@ -210,6 +211,7 @@ export class ChartRenderer {
         chart.options = configuration.options ?? {};
         chart.update();
       },
+      replay: () => undefined,
       destroy: () => chart.destroy(),
     };
   }

@@ -40,7 +40,7 @@ describe('AdminStatistics', () => {
       providers: [
         provideRouter([]),
         { provide: StatisticsService, useValue: { getSales } },
-        { provide: ChartRenderer, useValue: { create: vi.fn(() => ({ update: vi.fn(), destroy: vi.fn() })) } },
+        { provide: ChartRenderer, useValue: { create: vi.fn(() => ({ update: vi.fn(), destroy: vi.fn(), replay: vi.fn() })) } },
       ],
     }).compileComponents();
   });

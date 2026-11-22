@@ -17,7 +17,7 @@ const ROWS: RankingRow[] = [
 describe('StatisticsRanking', () => {
   let fixture: ComponentFixture<StatisticsRanking>;
   let element: HTMLElement;
-  let chart: { update: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> };
+  let chart: { update: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn>; replay: ReturnType<typeof vi.fn> };
   let create: ReturnType<typeof vi.fn>;
 
   async function render(inputs: Partial<{ rows: RankingRow[]; initialView: string; chartTypes: string[] }> = {}) {
@@ -47,7 +47,7 @@ describe('StatisticsRanking', () => {
   }
 
   beforeEach(async () => {
-    chart = { update: vi.fn(), destroy: vi.fn() };
+    chart = { update: vi.fn(), destroy: vi.fn(), replay: vi.fn() };
     create = vi.fn(() => chart);
     await TestBed.configureTestingModule({
       imports: [StatisticsRanking],
@@ -153,6 +153,31 @@ describe('StatisticsRanking', () => {
     expect(element.querySelector('table.ranking-table')).toBeNull();
     expect(element.querySelector('canvas.ranking-canvas')).not.toBeNull();
     expect(create).toHaveBeenCalledTimes(2);
+  });
+
+  it('replays the chart animation when it comes back at another size from the view buttons', async () => {
+    await render();
+
+    button('.ranking-view-toggle', 'Gráfico').click();
+    fixture.detectChanges();
+    expect(create).toHaveBeenCalledOnce();
+    expect(chart.replay).toHaveBeenCalledOnce();
+
+    button('.ranking-view-toggle', 'Tabla y gráfico').click();
+    fixture.detectChanges();
+    expect(chart.replay).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not replay the chart animation when only the metric changes', async () => {
+    await render();
+
+    const select = element.querySelector('select.ranking-metric') as HTMLSelectElement;
+    select.value = 'revenue';
+    select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    expect(chart.update).toHaveBeenCalled();
+    expect(chart.replay).not.toHaveBeenCalled();
   });
 
   it('can start on a given view', async () => {
