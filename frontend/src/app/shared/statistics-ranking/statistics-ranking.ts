@@ -64,6 +64,7 @@ export class StatisticsRanking {
   private readonly canvasRef = viewChild<ElementRef<HTMLCanvasElement>>('chartCanvas');
   private chart: RenderedChart | null = null;
   private chartCanvas: HTMLCanvasElement | null = null;
+  private chartView: RankingView | null = null;
 
   readonly headingId = `statistics-ranking-${++nextId}`;
   readonly views = VIEWS;
@@ -118,7 +119,7 @@ export class StatisticsRanking {
     // Se ejecuta tras pintar: el canvas puede aparecer o desaparecer al cambiar de vista
     afterRenderEffect(() => {
       const canvas = this.canvasRef()?.nativeElement ?? null;
-      this.syncChart(canvas, this.chartData());
+      this.syncChart(canvas, this.chartData(), this.view());
     });
     inject(DestroyRef).onDestroy(() => this.releaseChart());
   }
@@ -131,23 +132,30 @@ export class StatisticsRanking {
     return formatRankingValue(value, metric.format);
   }
 
-  private syncChart(canvas: HTMLCanvasElement | null, data: RankingChartData | null): void {
+  private syncChart(canvas: HTMLCanvasElement | null, data: RankingChartData | null, view: RankingView): void {
     if (!canvas || !data) {
       this.releaseChart();
       return;
     }
     if (this.chart && this.chartCanvas === canvas) {
       this.chart.update(data);
+      if (view !== this.chartView) {
+        // Al pasar entre «Gráfico» y «Tabla y gráfico» el canvas cambia de ancho: se vuelve a animar
+        this.chart.replay();
+        this.chartView = view;
+      }
       return;
     }
     this.releaseChart();
     this.chart = this.renderer.create(canvas, data);
     this.chartCanvas = canvas;
+    this.chartView = view;
   }
 
   private releaseChart(): void {
     this.chart?.destroy();
     this.chart = null;
     this.chartCanvas = null;
+    this.chartView = null;
   }
 }

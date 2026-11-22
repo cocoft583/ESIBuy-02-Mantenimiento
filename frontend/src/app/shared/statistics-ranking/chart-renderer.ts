@@ -190,29 +190,70 @@ export function buildChartConfiguration(data: RankingChartData): ChartConfigurat
   return polar as unknown as ChartConfiguration;
 }
 
+function afterTwoFrames(callback: () => void): void {
+  if (typeof requestAnimationFrame !== 'function') {
+    setTimeout(callback, 32);
+    return;
+  }
+  requestAnimationFrame(() => requestAnimationFrame(callback));
+}
+
 /** Pinta los gráficos del ranking con Chart.js. Se inyecta para poder sustituirlo en los tests. */
 @Injectable({ providedIn: 'root' })
 export class ChartRenderer {
   create(canvas: HTMLCanvasElement, data: RankingChartData): RenderedChart {
     let currentType = data.type;
+    let animate = data.animate;
     let chart = new Chart(canvas, buildChartConfiguration(data));
+    let destroyed = false;
+    let entrance = 0;
+
+    // Nada más crearse (o al cambiar de tamaño), el ResizeObserver de Chart.js redimensiona el
+    // gráfico en el siguiente fotograma, y un redimensionado termina de golpe la animación en curso.
+    // Por eso la entrada se reproduce desde el principio cuando el tamaño ya está asentado, y hasta
+    // entonces el gráfico no se ve, para que no aparezca completo y luego vuelva a empezar.
+    const playEntrance = () => {
+      if (!animate) {
+        canvas.style.visibility = '';
+        return;
+      }
+      const ticket = ++entrance;
+      canvas.style.visibility = 'hidden';
+      afterTwoFrames(() => {
+        if (destroyed || ticket !== entrance) {
+          return;
+        }
+        canvas.style.visibility = '';
+        chart.reset();
+        chart.update();
+      });
+    };
+
+    playEntrance();
 
     return {
       update: (next) => {
+        animate = next.animate;
         const configuration = buildChartConfiguration(next);
         if (next.type !== currentType) {
           // Chart.js no cambia de tipo en caliente: se vuelve a crear sobre el mismo canvas
           chart.destroy();
           chart = new Chart(canvas, configuration);
           currentType = next.type;
+          playEntrance();
           return;
         }
+        // Mismo gráfico con otros datos: Chart.js anima de los valores actuales a los nuevos
         chart.data = configuration.data;
         chart.options = configuration.options ?? {};
         chart.update();
       },
-      replay: () => undefined,
-      destroy: () => chart.destroy(),
+      replay: playEntrance,
+      destroy: () => {
+        destroyed = true;
+        canvas.style.visibility = '';
+        chart.destroy();
+      },
     };
   }
 }
