@@ -3,6 +3,7 @@ package es.uclm.esibuy.products.service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 
+import es.uclm.esibuy.products.event.ProductSnapshot;
 import es.uclm.esibuy.products.model.Product;
 
 /**
@@ -31,8 +32,15 @@ public final class ProductPricing {
             return Discount.none();
         }
 
-        BigDecimal standardDiscount = positiveOrZero(product.getDiscount());
-        BigDecimal premiumDiscount = positiveOrZero(product.getPremiumDiscount());
+        return resolveDiscount(product.getDiscount(), product.getPremiumDiscount(), premiumCustomer);
+    }
+
+    private static Discount resolveDiscount(
+            BigDecimal discount,
+            BigDecimal premiumDiscountValue,
+            boolean premiumCustomer) {
+        BigDecimal standardDiscount = positiveOrZero(discount);
+        BigDecimal premiumDiscount = positiveOrZero(premiumDiscountValue);
 
         if (premiumCustomer) {
             BigDecimal totalDiscount = standardDiscount.add(premiumDiscount).min(ONE_HUNDRED);
@@ -44,8 +52,22 @@ public final class ProductPricing {
     }
 
     public static BigDecimal effectivePrice(Product product, boolean premiumCustomer) {
-        BigDecimal price = product.getPrice();
-        BigDecimal discount = resolveDiscount(product, premiumCustomer).percentage();
+        return effectivePrice(
+                product.getPrice(), product.getDiscount(), product.getPremiumDiscount(), premiumCustomer);
+    }
+
+    /** El mismo cálculo sobre una foto del producto, para comparar cómo era con cómo es. */
+    public static BigDecimal effectivePrice(ProductSnapshot snapshot, boolean premiumCustomer) {
+        return effectivePrice(
+                snapshot.price(), snapshot.discount(), snapshot.premiumDiscount(), premiumCustomer);
+    }
+
+    private static BigDecimal effectivePrice(
+            BigDecimal price,
+            BigDecimal storedDiscount,
+            BigDecimal storedPremiumDiscount,
+            boolean premiumCustomer) {
+        BigDecimal discount = resolveDiscount(storedDiscount, storedPremiumDiscount, premiumCustomer).percentage();
 
         if (discount.compareTo(BigDecimal.ZERO) > 0) {
             BigDecimal factor = ONE_HUNDRED
