@@ -891,5 +891,17 @@ describe('ClientCart', () => {
       expect(element.querySelector('.checkout-panel')).not.toBeNull();
       expect(element.querySelector('.order-confirmation')).toBeNull();
     });
+
+    it('should say nothing was charged instead of the generic internal error when the server fails', async () => {
+      const element = await placeOrder(failWith(
+        500,
+        'Se produjo un error interno. Consulte el identificador de correlación.',
+      ));
+
+      const alert = element.querySelector('[role="alert"]')?.textContent ?? '';
+      expect(alert).toContain('El pedido no se ha completado y no se ha realizado ningún cargo');
+      expect(alert).not.toContain('error interno');
+      expect(element.querySelector('.checkout-panel')).not.toBeNull();
+    });
   });
 });
