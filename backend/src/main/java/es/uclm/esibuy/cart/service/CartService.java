@@ -3,6 +3,9 @@ package es.uclm.esibuy.cart.service;
 import java.math.BigDecimal;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
 import es.uclm.esibuy.cart.dto.AddCartItemDTO;
 import es.uclm.esibuy.cart.dto.CartDTO;
 import es.uclm.esibuy.cart.dto.CartItemDTO;
@@ -11,6 +14,7 @@ import es.uclm.esibuy.cart.model.Cart;
 import es.uclm.esibuy.cart.model.CartItem;
 import es.uclm.esibuy.cart.repository.CartRepository;
 import es.uclm.esibuy.common.exception.ProductNotFoundException;
+import es.uclm.esibuy.common.exception.ProductoExclusivoPremiumException;
 import es.uclm.esibuy.common.exception.ProductoNoDisponibleException;
 import es.uclm.esibuy.common.exception.StockInsuficienteException;
 import es.uclm.esibuy.products.model.Product;
@@ -19,8 +23,6 @@ import es.uclm.esibuy.products.service.ProductPricing;
 import es.uclm.esibuy.products.service.ProductPricing.Discount;
 import es.uclm.esibuy.users.model.CustomerType;
 import es.uclm.esibuy.users.repository.UserRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 
 @Service
 public class CartService {
@@ -58,6 +60,9 @@ public class CartService {
                 .orElseThrow(ProductNotFoundException::new);
 
         validateProductAvailability(product);
+        if (product.isPremiumOnly() && !isPremiumCustomer(customerId)) {
+            throw new ProductoExclusivoPremiumException();
+        }
 
         Cart cart = cartRepository.findByCustomerId(customerId)
                 .orElseGet(() -> new Cart(customerId));
