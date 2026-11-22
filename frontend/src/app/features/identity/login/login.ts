@@ -7,6 +7,8 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 import { AuthService, AuthenticatedUser, UserRole } from '../../../core/services/auth.service';
 
+const ACCOUNT_PENDING_CODE = 'ACCOUNT_PENDING';
+
 @Component({
   selector: 'app-login',
   standalone: true,
@@ -57,6 +59,12 @@ export class Login implements OnDestroy {
       ]],
       totpCode: ['']
     });
+
+    // Al volver de la página de cuenta pendiente, el correo ya viene escrito
+    const returningEmail = typeof history !== 'undefined' ? history.state?.loginEmail : null;
+    if (typeof returningEmail === 'string') {
+      this.loginForm.patchValue({ email: returningEmail });
+    }
 
     if (this.route.snapshot.queryParamMap.get('expired') === 'true') {
       this.serverError = 'Tu sesión ha expirado';
@@ -144,6 +152,18 @@ export class Login implements OnDestroy {
           && typeof error.error?.message === 'string'
           ? error.error.message
           : 'Error en el servidor al iniciar sesión. Revisa tus credenciales.';
+
+        // Contraseña correcta pero la cuenta aún no está aprobada (HU17): no es un error del usuario
+        if (error instanceof HttpErrorResponse && error.status === 403
+          && error.error?.code === ACCOUNT_PENDING_CODE) {
+          void this.router.navigate(['/cuenta-pendiente'], {
+            state: {
+              email: this.loginForm.get('email')?.value,
+              message: typeof error.error?.message === 'string' ? error.error.message : undefined,
+            },
+          });
+          return;
+        }
 
         if (error instanceof HttpErrorResponse && error.status === 429) {
           const retryAfterSeconds = this.getRetryAfterSeconds(error);

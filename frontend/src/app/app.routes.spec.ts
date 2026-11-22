@@ -3,6 +3,7 @@ import { routes } from './app.routes';
 import { webOnlyGuard } from './core/guards/web-only.guard';
 import { authGuard } from './core/guards/auth.guard';
 import { AdminStatistics } from './features/admin/admin-statistics/admin-statistics';
+import { PendingAccount } from './features/identity/pending-account/pending-account';
 
 describe('rutas de la app móvil', () => {
   const pagesWithComponent = routes.filter((route): route is Route & { path: string } =>
@@ -29,6 +30,15 @@ describe('rutas de la app móvil', () => {
     for (const route of forEveryone) {
       expect(route.canActivate ?? [], route.path).not.toContain(webOnlyGuard);
     }
+  });
+});
+
+describe('página de cuenta pendiente', () => {
+  it('se abre sin sesión, en la web y en la app', () => {
+    const route = routes.find((candidate) => candidate.path === 'cuenta-pendiente');
+
+    expect(route?.component).toBe(PendingAccount);
+    expect(route?.canActivate ?? []).toHaveLength(0);
   });
 });
 
