@@ -4,8 +4,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -14,22 +14,31 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.stereotype.Service;
+
 import com.mongodb.client.result.UpdateResult;
 
 import es.uclm.esibuy.cart.dto.CartItemDTO;
 import es.uclm.esibuy.cart.model.Cart;
 import es.uclm.esibuy.cart.model.CartItem;
 import es.uclm.esibuy.cart.repository.CartRepository;
-import es.uclm.esibuy.configuration.model.GeneralConfiguration;
-import es.uclm.esibuy.configuration.service.GeneralConfigurationService;
 import es.uclm.esibuy.common.exception.PagoFallidoException;
 import es.uclm.esibuy.common.exception.PedidoNoCompletadoException;
 import es.uclm.esibuy.common.exception.PedidoNotFoundException;
 import es.uclm.esibuy.common.exception.ProductNotFoundException;
+import es.uclm.esibuy.common.exception.ProductoExclusivoPremiumException;
 import es.uclm.esibuy.common.exception.ProductoNoDisponibleException;
 import es.uclm.esibuy.common.exception.RecursoCheckoutNoEncontradoException;
 import es.uclm.esibuy.common.exception.StockInsuficienteException;
 import es.uclm.esibuy.common.exception.UserNotFoundException;
+import es.uclm.esibuy.configuration.model.GeneralConfiguration;
+import es.uclm.esibuy.configuration.service.GeneralConfigurationService;
 import es.uclm.esibuy.orders.dto.CheckoutPaymentMethodDTO;
 import es.uclm.esibuy.orders.dto.CheckoutSummaryDTO;
 import es.uclm.esibuy.orders.dto.CreateOrderDTO;
@@ -62,14 +71,6 @@ import es.uclm.esibuy.users.model.ReservedAccounts;
 import es.uclm.esibuy.users.model.ShippingAddress;
 import es.uclm.esibuy.users.model.User;
 import es.uclm.esibuy.users.repository.UserRepository;
-
-import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.data.mongodb.core.FindAndModifyOptions;
-import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.stereotype.Service;
 
 @Service
 public class OrderService {
@@ -759,6 +760,10 @@ public class OrderService {
 
         if (!product.isAvailable()) {
             throw new ProductoNoDisponibleException();
+        }
+
+        if (product.isPremiumOnly() && !premiumCustomer) {
+            throw new ProductoExclusivoPremiumException();
         }
 
         if (product.getStock() < item.getQuantity()) {
