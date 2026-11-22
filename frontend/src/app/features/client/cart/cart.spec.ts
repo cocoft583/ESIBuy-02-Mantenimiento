@@ -687,4 +687,119 @@ describe('ClientCart', () => {
     expect(element.querySelector('.discount-saving-line')?.textContent).toContain('20,00');
     expect(element.querySelector('.total-line')?.textContent).toContain('80,00');
   });
+
+  describe('stock disponible', () => {
+    async function createCart(
+      item: { cantidad: number; stockDisponible?: number | null },
+      updateItemQuantity = vi.fn(() => new Subject<never>().asObservable()),
+    ) {
+      await TestBed.configureTestingModule({
+        imports: [ClientCart],
+        providers: [
+          provideRouter([]),
+          {
+            provide: CartService,
+            useValue: {
+              cart: signal({
+                id: 'cart-1',
+                clienteId: 'client-1',
+                items: [{
+                  productoId: 'product-1',
+                  nombre: 'Auriculares',
+                  precioUnitario: 10,
+                  subtotal: 10 * item.cantidad,
+                  ...item,
+                }],
+                precioTotal: 10 * item.cantidad,
+              }),
+              loading: signal(false),
+              loadError: signal(null),
+              itemCount: () => item.cantidad,
+              updateItemQuantity,
+              removeItem: vi.fn(() => new Subject<never>().asObservable()),
+            },
+          },
+          { provide: PedidoService, useValue: { obtenerCheckoutResumen: vi.fn(), crearPedido: vi.fn() } },
+        ],
+      }).compileComponents();
+
+      const fixture = TestBed.createComponent(ClientCart);
+      fixture.detectChanges();
+      const element = fixture.nativeElement as HTMLElement;
+      const increase = element.querySelector('[aria-label="Aumentar cantidad de Auriculares"]') as HTMLButtonElement;
+      const decrease = element.querySelector('[aria-label="Reducir cantidad de Auriculares"]') as HTMLButtonElement;
+      return { fixture, element, increase, decrease, updateItemQuantity };
+    }
+
+    it('should show the backend stock message when the quantity exceeds the stock', async () => {
+      const updateItemQuantity = vi.fn(() => throwError(() => new HttpErrorResponse({
+      status: 409,
+      error: { message: 'No hay stock suficiente para la cantidad solicitada', code: 'INSUFFICIENT_STOCK' },
+    })));
+      const { fixture, element, increase } = await createCart({ cantidad: 1, stockDisponible: 5 }, updateItemQuantity);
+
+      increase.click();
+      fixture.detectChanges();
+
+      expect(updateItemQuantity).toHaveBeenCalledWith('product-1', 2);
+      expect(element.querySelector('[role="alert"]')?.textContent)
+        .toContain('No hay stock suficiente para la cantidad solicitada');
+    });
+
+    it('should keep the generic message when the backend sends no message', async () => {
+      const updateItemQuantity = vi.fn(() => throwError(() => new HttpErrorResponse({ status: 500 })));
+      const { fixture, element, increase } = await createCart({ cantidad: 1, stockDisponible: 5 }, updateItemQuantity);
+
+      increase.click();
+      fixture.detectChanges();
+
+      expect(element.querySelector('[role="alert"]')?.textContent)
+        .toContain('No se pudo actualizar el carrito. Inténtalo de nuevo.');
+    });
+
+    it('should disable the increase button and show the limit once the cart holds all the stock', async () => {
+      const { element, increase, decrease, updateItemQuantity } = await createCart({ cantidad: 3, stockDisponible: 3 });
+
+      expect(increase.disabled).toBe(true);
+      expect(decrease.disabled).toBe(false);
+      expect(element.querySelector('.stock-limit')?.textContent).toContain('Máximo disponible: 3');
+
+      increase.click();
+      expect(updateItemQuantity).not.toHaveBeenCalled();
+    });
+
+    it('should warn when the cart holds more units than the stock left and still allow reducing them', async () => {
+      const { fixture, element, increase, decrease, updateItemQuantity } =
+        await createCart({ cantidad: 4, stockDisponible: 2 });
+
+      expect(increase.disabled).toBe(true);
+      expect(element.querySelector('.stock-limit')?.textContent).toContain('Solo quedan 2 unidades');
+
+      decrease.click();
+      fixture.detectChanges();
+      expect(updateItemQuantity).toHaveBeenCalledWith('product-1', 3);
+    });
+
+    it('should not ask the server for more units than the stock allows', async () => {
+      const { fixture, element, updateItemQuantity } = await createCart({ cantidad: 3, stockDisponible: 3 });
+
+      fixture.componentInstance.changeQuantity('product-1', 4);
+      fixture.detectChanges();
+
+      expect(updateItemQuantity).not.toHaveBeenCalled();
+      expect(element.querySelector('[role="alert"]')?.textContent)
+        .toContain('No hay stock suficiente para la cantidad solicitada');
+    });
+
+    it('should keep the increase button enabled below the stock or when the stock is unknown', async () => {
+      const belowStock = await createCart({ cantidad: 2, stockDisponible: 3 });
+      expect(belowStock.increase.disabled).toBe(false);
+      expect(belowStock.element.querySelector('.stock-limit')).toBeNull();
+
+      TestBed.resetTestingModule();
+      const unknownStock = await createCart({ cantidad: 2, stockDisponible: null });
+      expect(unknownStock.increase.disabled).toBe(false);
+      expect(unknownStock.element.querySelector('.stock-limit')).toBeNull();
+    });
+  });
 });

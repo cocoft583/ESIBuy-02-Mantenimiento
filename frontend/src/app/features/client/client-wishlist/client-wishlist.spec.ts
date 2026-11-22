@@ -1,7 +1,8 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
-import { NEVER, of } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import { describe, beforeEach, afterEach, it, expect, vi } from 'vitest';
 import { ClientWishlist } from './client-wishlist';
 import { WishlistService } from '../../../core/services/wishlist.service';
@@ -217,6 +218,17 @@ describe('ClientWishlist', () => {
 
     expect(cartServiceMock.addItem).toHaveBeenCalledWith('p-1', 2);
     expect(toastServiceMock.show).toHaveBeenCalledWith('Producto añadido al carrito', 'success');
+  });
+
+  it('should show the stock message when the cart already holds all the units', () => {
+    cartServiceMock.addItem.mockReturnValue(throwError(() => new HttpErrorResponse({
+      status: 409,
+      error: { message: 'No hay stock suficiente para la cantidad solicitada', code: 'INSUFFICIENT_STOCK' },
+    })));
+
+    component.addToCart(mockWishlistProducts[0]);
+
+    expect(toastServiceMock.show).toHaveBeenCalledWith('No hay stock suficiente para la cantidad solicitada', 'error');
   });
 
   it('should ignore repeated add-to-cart clicks while the request is pending', () => {

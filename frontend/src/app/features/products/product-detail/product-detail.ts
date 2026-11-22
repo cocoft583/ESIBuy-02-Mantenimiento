@@ -6,6 +6,7 @@ import { WishlistService } from '../../../core/services/wishlist.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { CartService } from '../../../core/services/cart.service';
+import { insufficientStockMessage } from '../../../core/utils/cart-error-message';
 import { ProductReviewSummary, ReviewsService } from '../../../core/services/reviews.service';
 import { ADMIN_READONLY_ERROR_MESSAGE } from '../../../core/services/admin-product.service';
 import { AppSidebarComponent } from '../../../shared/app-sidebar/app-sidebar';
@@ -405,8 +406,8 @@ export class ProductDetail implements OnInit {
         this.toastService.show('Producto añadido al carrito', 'success');
         this.quantity.set(1);
       },
-      error: () => {
-        this.toastService.show('Error al añadir producto al carrito', 'error');
+      error: (error: unknown) => {
+        this.toastService.show(insufficientStockMessage(error) ?? 'Error al añadir producto al carrito', 'error');
       },
     }).add(() => this.cartAdding.set(false));
   }

@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter } from '@angular/router';
 import { describe, beforeEach, it, expect, vi } from 'vitest';
@@ -106,5 +107,16 @@ describe('ClientOrderDetail', () => {
 
     expect(element.querySelector('.receipt-action-banner')).toBeTruthy();
     expect(element.querySelector('.confirm-receipt-button')?.textContent).toContain('He recibido mi pedido');
+  });
+
+  it('should show the stock message when buying again more units than are left', () => {
+    (TestBed.inject(CartService) as unknown as { addItem: () => unknown }).addItem = () => throwError(() => new HttpErrorResponse({
+      status: 409,
+      error: { message: 'No hay stock suficiente para la cantidad solicitada', code: 'INSUFFICIENT_STOCK' },
+    }));
+
+    fixture.componentInstance.buyAgain('producto-1', 2);
+
+    expect(fixture.componentInstance.actionError()).toBe('No hay stock suficiente para la cantidad solicitada');
   });
 });
