@@ -9,6 +9,10 @@ import { CartItem, CartResponse, CartService } from '../../../core/services/cart
 import { CheckoutSummary, ConfirmedOrder, PedidoService } from '../../../core/services/pedido.service';
 import { AppSidebarComponent } from '../../../shared/app-sidebar/app-sidebar';
 
+// HU11: si el servidor falla al pagar, el backend garantiza que no queda ningún cobro sin pedido
+const ORDER_NOT_CHARGED_MESSAGE =
+  'El pedido no se ha completado y no se ha realizado ningún cargo. Inténtalo de nuevo más tarde.';
+
 export interface SellerCartGroup {
   vendedorId: string;
   vendedorNombre: string;
@@ -393,10 +397,18 @@ export class ClientCart {
         }
       },
       error: (error: unknown) => {
-        this.actionError.set(this.getOrderErrorMessage(error));
+        this.actionError.set(this.getPaymentErrorMessage(error));
         this.processingOrder.set(false);
       },
     });
+  }
+
+  // Al confirmar el pedido el cliente tiene que saber si se le ha cobrado
+  private getPaymentErrorMessage(error: unknown): string {
+    if (error instanceof HttpErrorResponse && error.status >= 500 && error.status !== 503) {
+      return ORDER_NOT_CHARGED_MESSAGE;
+    }
+    return this.getOrderErrorMessage(error);
   }
 
   private getOrderErrorMessage(error: unknown): string {
