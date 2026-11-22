@@ -4,23 +4,23 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import es.uclm.esibuy.common.filter.CorrelationIdFilter;
-import es.uclm.esibuy.security.password.PasswordCheckUnavailableException;
-import jakarta.validation.ConstraintViolation;
-import jakarta.validation.ConstraintViolationException;
-import jakarta.servlet.http.HttpServletRequest;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
+
+import es.uclm.esibuy.common.filter.CorrelationIdFilter;
 import es.uclm.esibuy.security.password.CompromisedPasswordException;
+import es.uclm.esibuy.security.password.PasswordCheckUnavailableException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
@@ -176,6 +176,16 @@ public class ApiExceptionHandler {
                 return ResponseEntity.status(HttpStatus.GONE).body(Map.of(
                                 MESSAGE, exception.getMessage(),
                                 "code", ProductoDesactivadoException.CODE,
+                                CORRELATION_ID, correlationId(request)));
+        }
+
+        @ExceptionHandler(ProductoExclusivoPremiumException.class)
+        public ResponseEntity<Map<String, String>> handlePremiumOnly(
+                        ProductoExclusivoPremiumException exception,
+                        HttpServletRequest request) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+                                MESSAGE, exception.getMessage(),
+                                "code", ProductoExclusivoPremiumException.CODE,
                                 CORRELATION_ID, correlationId(request)));
         }
 
