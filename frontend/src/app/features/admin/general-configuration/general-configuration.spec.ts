@@ -17,6 +17,7 @@ describe('GeneralConfigurationPage', () => {
     gastosEnvio: 4.99,
     envioGratuitoDesde: 50,
     registroHabilitado: true,
+    minimoValoracionesRanking: 5,
   };
 
   let configurationService: {
@@ -117,5 +118,36 @@ describe('GeneralConfigurationPage', () => {
 
     expect(configurationService.update).not.toHaveBeenCalled();
     expect(component.errorMessage()).toContain('no negativos');
+  });
+
+  it('shows the minimum of reviews for the rating ranking and saves it', async () => {
+    const fixture = TestBed.createComponent(GeneralConfigurationPage);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+
+    const input = fixture.nativeElement.querySelector('#minimoValoracionesRanking') as HTMLInputElement;
+    expect(input.value).toBe('5');
+
+    component.form.minimoValoracionesRanking = 8;
+    component.save(fixture.debugElement.query(By.css('form')).injector.get(NgForm));
+
+    expect(configurationService.update).toHaveBeenCalledWith(expect.objectContaining({ minimoValoracionesRanking: 8 }));
+  });
+
+  it('does not send a minimum of reviews that is not a whole number from 1 to 1000', () => {
+    const fixture = TestBed.createComponent(GeneralConfigurationPage);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    const form = fixture.debugElement.query(By.css('form')).injector.get(NgForm);
+
+    for (const value of [0, 2.5, 1001]) {
+      component.form.minimoValoracionesRanking = value;
+      component.save(form);
+    }
+
+    expect(configurationService.update).not.toHaveBeenCalled();
+    expect(component.errorMessage()).toContain('valoraciones');
   });
 });

@@ -7,6 +7,7 @@ export interface GeneralConfiguration {
   gastosEnvio: number;
   envioGratuitoDesde: number;
   registroHabilitado: boolean;
+  minimoValoracionesRanking?: number;
 }
 
 @Injectable({ providedIn: 'root' })

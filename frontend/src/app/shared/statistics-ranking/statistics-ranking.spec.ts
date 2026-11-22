@@ -20,10 +20,17 @@ describe('StatisticsRanking', () => {
   let chart: { update: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn>; replay: ReturnType<typeof vi.fn> };
   let create: ReturnType<typeof vi.fn>;
 
-  async function render(inputs: Partial<{ rows: RankingRow[]; initialView: string; chartTypes: string[] }> = {}) {
+  async function render(inputs: Partial<{
+    rows: RankingRow[];
+    initialView: string;
+    chartTypes: string[];
+    metrics: RankingMetric[];
+    reference: { value: number; label: string } | null;
+  }> = {}) {
     fixture = TestBed.createComponent(StatisticsRanking);
     fixture.componentRef.setInput('heading', 'Productos más vendidos');
-    fixture.componentRef.setInput('metrics', METRICS);
+    fixture.componentRef.setInput('metrics', inputs.metrics ?? METRICS);
+    if (inputs.reference !== undefined) fixture.componentRef.setInput('reference', inputs.reference);
     fixture.componentRef.setInput('rows', inputs.rows ?? ROWS);
     fixture.componentRef.setInput('emptyMessage', 'Todavía no hay ventas.');
     if (inputs.initialView) fixture.componentRef.setInput('initialView', inputs.initialView);
@@ -223,5 +230,57 @@ describe('StatisticsRanking', () => {
     fixture.destroy();
 
     expect(chart.destroy).toHaveBeenCalledOnce();
+  });
+
+  describe('con un valor de referencia (RF-EST-05)', () => {
+    const RATING_METRICS: RankingMetric[] = [
+      { key: 'rating', label: 'Valoración media', format: 'rating' },
+      { key: 'products', label: 'Productos valorados', format: 'number' },
+    ];
+    const SELLERS: RankingRow[] = [
+      { id: 's-1', label: 'Tienda Uno', values: { rating: 4.6, products: 4 } },
+      { id: 's-2', label: 'Tienda Dos', values: { rating: 3.85, products: 1 } },
+    ];
+    const REFERENCE = { value: 4.25, label: 'Media de la plataforma' };
+
+    it('draws the reference on rating charts and fixes the scale to five stars', async () => {
+      await render({ rows: SELLERS, metrics: RATING_METRICS, reference: REFERENCE });
+
+      const data = lastChartData();
+      expect(data.reference).toEqual(REFERENCE);
+      expect(data.scaleMax).toBe(5);
+    });
+
+    it('drops the reference and the five-star scale for metrics that are not ratings', async () => {
+      await render({ rows: SELLERS, metrics: RATING_METRICS, reference: REFERENCE });
+
+      const select = element.querySelector('select.ranking-metric') as HTMLSelectElement;
+      select.value = 'products';
+      select.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+
+      expect(lastChartData().reference).toBeUndefined();
+      expect(lastChartData().scaleMax).toBeUndefined();
+      expect(element.querySelector('.reference-delta')).toBeNull();
+    });
+
+    it('shows in the table how far each row is from the reference', async () => {
+      await render({ rows: SELLERS, metrics: RATING_METRICS, reference: REFERENCE });
+
+      const deltas = Array.from(element.querySelectorAll('.reference-delta'));
+      expect(deltas.map((delta) => delta.textContent?.trim())).toEqual(['+0,35', '−0,40']);
+      expect(deltas[0].classList).toContain('is-above');
+      expect(deltas[1].classList).toContain('is-below');
+      expect(element.querySelector('.reference-note')?.textContent).toContain('Media de la plataforma: 4,25');
+    });
+
+    it('works without a reference', async () => {
+      await render({ rows: SELLERS, metrics: RATING_METRICS });
+
+      expect(lastChartData().reference).toBeUndefined();
+      expect(lastChartData().scaleMax).toBe(5);
+      expect(element.querySelector('.reference-delta')).toBeNull();
+      expect(element.querySelector('.reference-note')).toBeNull();
+    });
   });
 });
