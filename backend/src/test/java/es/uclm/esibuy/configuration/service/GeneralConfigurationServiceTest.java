@@ -60,7 +60,8 @@ class GeneralConfigurationServiceTest {
                 new BigDecimal("22.00"),
                 new BigDecimal("5.50"),
                 new BigDecimal("60.00"),
-                false));
+                false,
+                null));
 
         assertEquals(GeneralConfiguration.DOCUMENT_ID, updated.getId());
         assertEquals(new BigDecimal("22.00"), updated.getIvaPorcentaje());

@@ -16,6 +16,7 @@ import org.springframework.stereotype.Repository;
 
 import es.uclm.esibuy.orders.model.OrderPaymentStatus;
 import es.uclm.esibuy.orders.model.OrderStatus;
+import es.uclm.esibuy.products.model.Product;
 
 @Repository
 public class MongoStatisticsRepository implements StatisticsRepository {
@@ -25,6 +26,9 @@ public class MongoStatisticsRepository implements StatisticsRepository {
     private static final String UNITS_SOLD = "unitsSold";
     private static final String REVENUE = "revenue";
     private static final String SUBTOTAL_VALUE = "subtotalValue";
+    private static final String PRODUCTS_COLLECTION = "products";
+    private static final String RATING = "rating";
+    private static final String REVIEW_COUNT = "reviewCount";
     private static final String ID = "_id";
 
     private final MongoTemplate mongoTemplate;
@@ -60,6 +64,44 @@ public class MongoStatisticsRepository implements StatisticsRepository {
                 .getMappedResults().stream()
                 .map(this::toRow)
                 .toList();
+    }
+
+    @Override
+    public List<ProductRatingRow> findTopRatedProducts(int minimumReviews, int limit) {
+        Aggregation aggregation = Aggregation.newAggregation(
+                // El número de valoraciones manda: un producto sin ellas puede guardar una nota
+                // (rating 5 con reviewCount 0 o sin el campo) y no debe entrar en el ranking.
+                // Con rating >= 0 se descartan también las notas que no son un número
+                Aggregation.match(Criteria.where(REVIEW_COUNT).gte(Math.max(minimumReviews, 1))
+                        .and(RATING).gte(0)),
+                // El desempate por número de valoraciones y luego por identificador hace que
+                // el top sea siempre el mismo (RN-01)
+                Aggregation.sort(Sort.by(Sort.Direction.DESC, RATING)
+                        .and(Sort.by(Sort.Direction.DESC, REVIEW_COUNT))
+                        .and(Sort.by(Sort.Direction.ASC, ID))),
+                Aggregation.limit(limit));
+
+        return mongoTemplate.aggregate(aggregation, PRODUCTS_COLLECTION, Product.class)
+                .getMappedResults().stream()
+                .map(product -> new ProductRatingRow(
+                        product.getId(),
+                        product.getName(),
+                        product.getSellerId(),
+                        product.getRating(),
+                        product.getReviewCount()))
+                .toList();
+    }
+
+    @Override
+    public List<SellerRatingRow> findTopRatedSellers(int limit) {
+        // Se implementa en T23.2
+        return List.of();
+    }
+
+    @Override
+    public Double findPlatformAverageRating() {
+        // Se implementa en T23.2
+        return null;
     }
 
     /**
