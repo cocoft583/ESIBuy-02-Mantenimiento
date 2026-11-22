@@ -802,4 +802,94 @@ describe('ClientCart', () => {
       expect(unknownStock.element.querySelector('.stock-limit')).toBeNull();
     });
   });
+
+  describe('resultado del pago (HU11)', () => {
+    async function placeOrder(order$: ReturnType<PedidoService['crearPedido']>) {
+      const items = [{
+        productoId: 'product-1',
+        nombre: 'Auriculares',
+        precioUnitario: 19.99,
+        cantidad: 2,
+        subtotal: 39.98,
+      }];
+      const summary = {
+        direcciones: [{
+          id: 'address-1',
+          recipientName: 'Ana',
+          street: 'Calle Mayor 1',
+          additionalInfo: null,
+          postalCode: '13001',
+          city: 'Ciudad Real',
+          province: 'Ciudad Real',
+          phone: '',
+          isDefault: true,
+        }],
+        metodosPago: [{
+          id: 'payment-1',
+          type: 'CARD',
+          cardBrand: 'VISA',
+          lastFourDigits: '1234',
+          defaultMethod: true,
+        }],
+        items,
+        subtotal: 39.98,
+        ivaPorcentaje: 21,
+        ivaImporte: 6.94,
+        gastosEnvio: 0,
+        precioTotal: 39.98,
+      };
+
+      await TestBed.configureTestingModule({
+        imports: [ClientCart],
+        providers: [
+          provideRouter([]),
+          {
+            provide: CartService,
+            useValue: {
+              cart: signal({ id: 'cart-1', clienteId: 'client-1', items, precioTotal: 39.98 }),
+              loading: signal(false),
+              loadError: signal(null),
+              itemCount: () => 2,
+              clear: vi.fn(),
+            },
+          },
+          {
+            provide: PedidoService,
+            useValue: {
+              obtenerCheckoutResumen: vi.fn(() => of(summary)),
+              crearPedido: vi.fn(() => order$),
+            },
+          },
+        ],
+      }).compileComponents();
+
+      const fixture = TestBed.createComponent(ClientCart);
+      fixture.detectChanges();
+      fixture.componentInstance.setSelectedProductIds(['product-1']);
+      fixture.detectChanges();
+      (fixture.nativeElement.querySelector('.checkout-action') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      (fixture.nativeElement.querySelector('.checkout-actions .primary-action') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    function failWith(status: number, message?: string) {
+      return throwError(() => new HttpErrorResponse({
+        status,
+        error: message ? { message } : null,
+      }));
+    }
+
+    it('should say the order was not placed and nothing was charged when the backend could not complete it', async () => {
+      const element = await placeOrder(failWith(
+        503,
+        'No se ha podido completar el pedido. No se te ha cobrado nada ni se ha modificado tu carrito. Inténtalo de nuevo más tarde.',
+      ));
+
+      expect(element.querySelector('[role="alert"]')?.textContent).toContain('No se te ha cobrado nada');
+      expect(element.querySelector('.checkout-panel')).not.toBeNull();
+      expect(element.querySelector('.order-confirmation')).toBeNull();
+    });
+  });
 });
