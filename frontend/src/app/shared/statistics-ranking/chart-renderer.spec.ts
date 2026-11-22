@@ -33,7 +33,7 @@ vi.mock('chart.js', () => ({
   Tooltip: {},
 }));
 
-const { ChartRenderer } = await import('./chart-renderer');
+const { ChartRenderer, buildChartConfiguration } = await import('./chart-renderer');
 type ChartData = Parameters<InstanceType<typeof ChartRenderer>['create']>[1];
 
 function data(overrides: Partial<ChartData> = {}): ChartData {
@@ -149,5 +149,33 @@ describe('ChartRenderer', () => {
 
     expect(charts[0].destroy).toHaveBeenCalledOnce();
     expect(charts[0].reset).not.toHaveBeenCalled();
+  });
+
+  describe('configuración de Chart.js', () => {
+    type Config = { plugins?: { id: string }[]; options?: Record<string, any> };
+
+    it('adds the reference line plugin and its value to bar charts', () => {
+      const config = buildChartConfiguration(data({
+        reference: { value: 4.25, label: 'Media de la plataforma' },
+        scaleMax: 5,
+      })) as unknown as Config;
+
+      expect(config.plugins?.map((plugin) => plugin.id)).toContain('rankingReference');
+      expect(config.options?.['plugins'].rankingReference).toEqual({ value: 4.25, label: 'Media de la plataforma' });
+      expect(config.options?.['scales'].x.max).toBe(5);
+    });
+
+    it('fixes the radial scale of polar charts to the maximum', () => {
+      const config = buildChartConfiguration(data({ type: 'polarArea', scaleMax: 5 })) as unknown as Config;
+
+      expect(config.options?.['scales'].r.max).toBe(5);
+    });
+
+    it('leaves the scale free and adds no reference when none is given', () => {
+      const config = buildChartConfiguration(data()) as unknown as Config;
+
+      expect(config.plugins ?? []).toHaveLength(0);
+      expect(config.options?.['scales'].x.max).toBeUndefined();
+    });
   });
 });

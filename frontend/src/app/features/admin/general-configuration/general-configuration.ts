@@ -61,9 +61,11 @@ export class GeneralConfigurationPage implements OnInit {
     this.errorMessage.set(null);
     this.successMessage.set(null);
 
-    if (form.invalid || this.saving() || !this.isConfigurationValid()) {
+    if (form.invalid || this.saving() || !this.isConfigurationValid() || !this.isMinimumReviewsValid()) {
       if (!this.isConfigurationValid()) {
         this.errorMessage.set('Revisa los valores: deben ser números válidos y no negativos.');
+      } else if (!this.isMinimumReviewsValid()) {
+        this.errorMessage.set('El mínimo de valoraciones tiene que ser un número entero entre 1 y 1000.');
       }
       return;
     }
@@ -91,6 +93,13 @@ export class GeneralConfigurationPage implements OnInit {
 
     return values.every((value) => Number.isFinite(value) && value >= 0)
       && this.form.ivaPorcentaje <= 100;
+  }
+
+  // Es opcional en la API: si el backend no lo manda, no se envía y se queda como estaba
+  private isMinimumReviewsValid(): boolean {
+    const minimum = this.form.minimoValoracionesRanking;
+    return minimum === undefined || minimum === null
+      || (Number.isInteger(minimum) && minimum >= 1 && minimum <= 1000);
   }
 
   private getErrorMessage(error: unknown): string {

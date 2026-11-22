@@ -15,6 +15,12 @@ export interface RankingRow {
   values: Record<string, number>;
 }
 
+/** Un valor con el que comparar las filas, como la media de la plataforma (RF-EST-05). */
+export interface RankingReference {
+  value: number;
+  label: string;
+}
+
 export type RankingView = 'table' | 'chart' | 'both';
 export type RankingChartType = 'bar' | 'doughnut' | 'polarArea';
 

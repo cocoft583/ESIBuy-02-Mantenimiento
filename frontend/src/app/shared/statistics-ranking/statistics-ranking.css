@@ -268,6 +268,44 @@
   font-weight: 760;
 }
 
+.reference-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 8px 0 0;
+  color: #9c3550;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.reference-swatch {
+  width: 18px;
+  border-top: 2px dashed #e0607e;
+}
+
+.reference-delta {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 99px;
+  background: #eef4f7;
+  color: #496477;
+  font-size: 11px;
+  font-weight: 760;
+  animation: ranking-row-in .45s cubic-bezier(.2, .8, .2, 1) both;
+  animation-delay: calc(var(--row-index, 0) * 45ms + 300ms);
+}
+
+.reference-delta.is-above {
+  background: #ddf6ee;
+  color: #117761;
+}
+
+.reference-delta.is-below {
+  background: #fde8ec;
+  color: #b0334f;
+}
+
 .share-track {
   display: block;
   height: 5px;
