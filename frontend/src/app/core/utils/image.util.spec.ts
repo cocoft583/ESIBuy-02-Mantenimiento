@@ -41,9 +41,15 @@ describe('resolveImageUrl', () => {
     expect(resolveImageUrl('/api/products/1/image')).toBe('https://backend.example.com/api/products/1/image');
   });
 
-  it('should prioritize localStorage esibuy_api_url if present', () => {
+  it('should ignore an esibuy_api_url written in localStorage', () => {
     environment.apiUrl = 'https://default.example.com';
     localStorage.setItem('esibuy_api_url', 'https://custom.example.com');
-    expect(resolveImageUrl('/api/products/1/image')).toBe('https://custom.example.com/api/products/1/image');
+    expect(resolveImageUrl('/api/products/1/image')).toBe('https://default.example.com/api/products/1/image');
+  });
+
+  it('should keep image urls relative with an empty apiUrl even if localStorage has one', () => {
+    environment.apiUrl = '';
+    localStorage.setItem('esibuy_api_url', 'https://custom.example.com');
+    expect(resolveImageUrl('/api/products/1/image')).toBe('/api/products/1/image');
   });
 });
