@@ -125,9 +125,16 @@
   gap: 20px;
 }
 
-.ranking-body.is-split {
-  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
-  align-items: start;
+/* Gráfico y tabla en paralelo solo si la tarjeta es ancha; si no, uno debajo del otro */
+.ranking-card {
+  container-type: inline-size;
+}
+
+@container (min-width: 900px) {
+  .ranking-body.is-split {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    align-items: start;
+  }
 }
 
 .ranking-chart-panel {
@@ -239,6 +246,7 @@
 }
 
 .row-label {
+  min-width: 150px;
   font-weight: 700;
 }
 
@@ -252,7 +260,7 @@
 }
 
 .value-column.is-selected {
-  min-width: 150px;
+  min-width: 120px;
 }
 
 .value-column.is-selected .value-text {
@@ -306,12 +314,6 @@
 @keyframes share-grow {
   from {
     transform: scaleX(0);
-  }
-}
-
-@media (max-width: 1100px) {
-  .ranking-body.is-split {
-    grid-template-columns: minmax(0, 1fr);
   }
 }
 

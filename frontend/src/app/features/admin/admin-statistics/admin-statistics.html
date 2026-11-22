@@ -76,7 +76,9 @@
             </article>
             <article class="kpi-card is-highlight" style="--card-index: 2">
               <p class="kpi-label">Más vendido</p>
-              <p class="kpi-value kpi-value--text">{{ topProduct()?.productName }}</p>
+              <p class="kpi-value kpi-value--text" [attr.title]="topProduct()?.productName">
+                {{ topProduct()?.productName }}
+              </p>
               <p class="kpi-hint">
                 <span [appCountUp]="topProduct()?.unitsSold ?? 0"></span> unidades
               </p>
