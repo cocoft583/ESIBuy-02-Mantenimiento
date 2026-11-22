@@ -912,5 +912,21 @@ describe('ClientCart', () => {
       expect(alert).toContain('revisa Mis pedidos');
       expect(element.querySelector('.checkout-panel')).not.toBeNull();
     });
+
+    it('should confirm the charge and link to the order history when the order is placed', async () => {
+      const element = await placeOrder(of({
+        pedidoId: 'pedido-123',
+        precioTotal: 39.98,
+        estado: 'PENDIENTE' as const,
+        estadoPago: 'PAGADO' as const,
+        fechaCreacion: '2026-11-22T12:00:00',
+      }));
+
+      const confirmation = element.querySelector('.order-confirmation');
+      expect(confirmation?.textContent).toContain('Se ha realizado el cargo');
+      const historyLink = confirmation?.querySelector('a[href="/client/orders"]');
+      expect(historyLink?.textContent).toContain('Mis pedidos');
+      expect(element.querySelector('[role="alert"]')).toBeNull();
+    });
   });
 });
