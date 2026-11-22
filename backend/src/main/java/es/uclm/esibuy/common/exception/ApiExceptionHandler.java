@@ -108,6 +108,13 @@ public class ApiExceptionHandler {
                                 CORRELATION_ID, id));
         }
 
+        @ExceptionHandler(AlertNotFoundException.class)
+        public ResponseEntity<Map<String, String>> handleAlertNotFound(AlertNotFoundException exception,
+                        HttpServletRequest request) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(MESSAGE, exception.getMessage(),
+                                CORRELATION_ID, correlationId(request)));
+        }
+
         @ExceptionHandler(AccessDeniedException.class)
         public ResponseEntity<Map<String, String>> handleAccessDenied(AccessDeniedException exception) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(MESSAGE, exception.getMessage()));

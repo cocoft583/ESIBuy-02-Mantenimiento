@@ -26,7 +26,14 @@ public class GeneralConfigurationService {
         configuration.setGastosEnvio(request.gastosEnvio());
         configuration.setEnvioGratuitoDesde(request.envioGratuitoDesde());
         configuration.setRegistroHabilitado(request.registroHabilitado());
+        if (request.minimoValoracionesRanking() != null) {
+            configuration.setMinimoValoracionesRanking(request.minimoValoracionesRanking());
+        }
         return configurationRepository.save(configuration);
+    }
+
+    public int getMinimumReviewsForRanking() {
+        return getCurrent().getMinimoValoracionesRanking();
     }
 
     public boolean isRegistrationEnabled() {

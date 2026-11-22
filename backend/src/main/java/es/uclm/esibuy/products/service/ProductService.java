@@ -16,6 +16,7 @@ import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
 
 import org.bson.types.ObjectId;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.gridfs.GridFsResource;
@@ -41,6 +42,8 @@ import es.uclm.esibuy.products.dto.ProductDetailDTO;
 import es.uclm.esibuy.products.dto.ProductResponse;
 import es.uclm.esibuy.products.dto.ProductSummaryDTO;
 import es.uclm.esibuy.products.dto.ProductSummaryResponse;
+import es.uclm.esibuy.products.event.ProductChangedEvent;
+import es.uclm.esibuy.products.event.ProductSnapshot;
 import es.uclm.esibuy.products.model.Product;
 import es.uclm.esibuy.products.model.ProductDetails;
 import es.uclm.esibuy.products.repository.ProductCatalogRepository;
@@ -69,18 +72,21 @@ private static final String NO_PERMISSIONS_MESSAGE = "No tiene permisos para mod
     private final UserRepository userRepository;
     private final GridFsTemplate gridFsTemplate;
     private final ProductCatalogRepository productCatalogRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public ProductService(
             ProductRepository productRepository,
             CategoryRepository categoryRepository,
             UserRepository userRepository,
             GridFsTemplate gridFsTemplate,
-            ProductCatalogRepository productCatalogRepository) {
+            ProductCatalogRepository productCatalogRepository,
+            ApplicationEventPublisher eventPublisher) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
         this.userRepository = userRepository;
         this.gridFsTemplate = gridFsTemplate;
         this.productCatalogRepository = productCatalogRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     public Product createProduct(
@@ -178,6 +184,7 @@ private static final String NO_PERMISSIONS_MESSAGE = "No tiene permisos para mod
         ImagePayload image = file == null || file.isEmpty() ? null : validateAndNormalizeImage(file);
         Product product = getProduct(id, authenticatedEmail);
         List<String> categoryIds = validateCategories(request);
+        ProductSnapshot before = ProductSnapshot.of(product);
         String oldFileId = product.getImageFileId();
         String newFileId = null;
         if (image != null) {
@@ -214,6 +221,7 @@ private static final String NO_PERMISSIONS_MESSAGE = "No tiene permisos para mod
             } catch (RuntimeException cleanup) {
                 /* La imagen antigua puede limpiarse posteriormente. */ }
         }
+        publishChange(before, saved);
         return saved;
     }
 
@@ -504,6 +512,7 @@ private static final String NO_PERMISSIONS_MESSAGE = "No tiene permisos para mod
         }
 
         List<String> categoryIds = validateCategories(request);
+        ProductSnapshot before = ProductSnapshot.of(product);
 
         product.setName(request.getName().trim());
         product.setCategoryIds(categoryIds);
@@ -518,7 +527,14 @@ private static final String NO_PERMISSIONS_MESSAGE = "No tiene permisos para mod
         product.setPremiumOnly(Boolean.TRUE.equals(request.getPremiumOnly()));
         product.setAvailable(Boolean.TRUE.equals(request.getAvailable()));
 
-        return productRepository.save(product);
+        Product saved = productRepository.save(product);
+        publishChange(before, saved);
+        return saved;
+    }
+
+    /** Avisa de que un producto existente se ha guardado, con cómo era antes y cómo es ahora. */
+    private void publishChange(ProductSnapshot before, Product saved) {
+        eventPublisher.publishEvent(new ProductChangedEvent(before, ProductSnapshot.of(saved)));
     }
 
     public List<ProductResponse> getAvailableProducts() {
@@ -714,9 +730,12 @@ private static final String NO_PERMISSIONS_MESSAGE = "No tiene permisos para mod
             throw new AccessDeniedException(NO_PERMISSIONS_MESSAGE);
         }
 
+        ProductSnapshot before = ProductSnapshot.of(product);
         product.setAvailable(available);
 
-        return toProductResponse(productRepository.save(product));
+        Product saved = productRepository.save(product);
+        publishChange(before, saved);
+        return toProductResponse(saved);
     }
 
     private User findSeller(String authenticatedEmail) {

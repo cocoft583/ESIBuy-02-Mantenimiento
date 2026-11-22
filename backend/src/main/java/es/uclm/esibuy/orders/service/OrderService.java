@@ -49,6 +49,8 @@ import es.uclm.esibuy.orders.model.OrderPaymentStatus;
 import es.uclm.esibuy.orders.model.OrderShippingAddress;
 import es.uclm.esibuy.orders.model.OrderStatus;
 import es.uclm.esibuy.orders.repository.OrderRepository;
+import es.uclm.esibuy.products.event.ProductChangedEvent;
+import es.uclm.esibuy.products.event.ProductSnapshot;
 import es.uclm.esibuy.products.model.Product;
 import es.uclm.esibuy.products.repository.ProductRepository;
 import es.uclm.esibuy.products.service.ProductPricing;
@@ -61,6 +63,7 @@ import es.uclm.esibuy.users.model.ShippingAddress;
 import es.uclm.esibuy.users.model.User;
 import es.uclm.esibuy.users.repository.UserRepository;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -82,6 +85,7 @@ public class OrderService {
     private final MongoTemplate mongoTemplate;
     private final PaymentGateway paymentGateway;
     private final GeneralConfigurationService generalConfigurationService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public OrderService(
             UserRepository userRepository,
@@ -90,7 +94,8 @@ public class OrderService {
             OrderRepository orderRepository,
             MongoTemplate mongoTemplate,
             PaymentGateway paymentGateway,
-            GeneralConfigurationService generalConfigurationService) {
+            GeneralConfigurationService generalConfigurationService,
+            ApplicationEventPublisher eventPublisher) {
 
         this.userRepository = userRepository;
         this.cartRepository = cartRepository;
@@ -99,6 +104,7 @@ public class OrderService {
         this.mongoTemplate = mongoTemplate;
         this.paymentGateway = paymentGateway;
         this.generalConfigurationService = generalConfigurationService;
+        this.eventPublisher = eventPublisher;
     }
 
     public CheckoutSummaryDTO getCheckoutSummary(
@@ -372,9 +378,12 @@ public class OrderService {
                     "El pedido ya no se puede cancelar en su estado actual");
         }
 
-        restoreCancelledOrderStock(order.getItems());
+        List<ProductChangedEvent> restocked = restoreCancelledOrderStock(order.getItems());
         order.setStatus(OrderStatus.CANCELADO);
         orderRepository.save(order);
+
+        // Reponer unidades puede hacer que un producto vuelva a estar disponible
+        restocked.forEach(eventPublisher::publishEvent);
     }
 
     public ShippingTrackingDTO getShippingStatusHistory(String customerId, String orderId) {
@@ -837,7 +846,9 @@ public class OrderService {
         }
     }
 
-    private void restoreCancelledOrderStock(List<OrderItem> items) {
+    private List<ProductChangedEvent> restoreCancelledOrderStock(List<OrderItem> items) {
+        List<ProductChangedEvent> restocked = new ArrayList<>();
+
         for (OrderItem item : items) {
             Product restoredProduct = mongoTemplate.findAndModify(
                     Query.query(Criteria.where("_id").is(item.productId())),
@@ -849,7 +860,13 @@ public class OrderService {
                 throw new IllegalStateException(
                         "No se pudo encontrar el producto para reponer el stock");
             }
+
+            // El producto devuelto ya tiene las unidades repuestas: el stock de antes se deduce de él
+            ProductSnapshot after = ProductSnapshot.of(restoredProduct);
+            restocked.add(new ProductChangedEvent(after.withStock(after.stock() - item.quantity()), after));
         }
+
+        return restocked;
     }
 
     private StockInsuficienteException createInsufficientStockException(Product product) {

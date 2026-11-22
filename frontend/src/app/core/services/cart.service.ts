@@ -15,6 +15,8 @@ export interface CartItem {
   esDescuentoPremium?: boolean;
   vendedorId?: string;
   vendedorNombre?: string;
+  // Stock actual del producto; null si el backend no lo conoce
+  stockDisponible?: number | null;
 }
 
 export interface CartResponse {

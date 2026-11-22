@@ -9,6 +9,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 public class GeneralConfiguration {
 
     public static final String DOCUMENT_ID = "general";
+    public static final int DEFAULT_MINIMO_VALORACIONES_RANKING = 3;
 
     @Id
     private String id = DOCUMENT_ID;
@@ -17,6 +18,8 @@ public class GeneralConfiguration {
     private BigDecimal gastosEnvio = new BigDecimal("4.99");
     private BigDecimal envioGratuitoDesde = new BigDecimal("50.00");
     private boolean registroHabilitado = true;
+    // Un documento guardado antes de existir este campo conserva el valor por defecto al leerse
+    private int minimoValoracionesRanking = DEFAULT_MINIMO_VALORACIONES_RANKING;
 
     public GeneralConfiguration() {
     }
@@ -66,5 +69,14 @@ public class GeneralConfiguration {
 
     public void setRegistroHabilitado(boolean registroHabilitado) {
         this.registroHabilitado = registroHabilitado;
+    }
+
+    /** Valoraciones que necesita un producto para entrar en el ranking de mejor valorados. */
+    public int getMinimoValoracionesRanking() {
+        return minimoValoracionesRanking;
+    }
+
+    public void setMinimoValoracionesRanking(int minimoValoracionesRanking) {
+        this.minimoValoracionesRanking = minimoValoracionesRanking;
     }
 }

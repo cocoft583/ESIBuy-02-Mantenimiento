@@ -120,6 +120,29 @@ class ProductCatalogRepositoryTest {
     }
 
     @Test
+    void minimumRatingLeavesOutProductsWithoutReviews() {
+        insertWithoutReviews("p07", 0.0);
+        insertWithoutReviews("p08", 5.0);
+
+        CatalogResult fromZero = catalogRepository.search(withMinRating(0.0));
+        CatalogResult fromFour = catalogRepository.search(withMinRating(4.0));
+
+        assertThat(ids(fromZero)).containsExactly("p01", "p02", "p04", "p05");
+        assertThat(ids(fromFour)).containsExactly("p01", "p02", "p05");
+    }
+
+    @Test
+    void sortingByRatingKeepsProductsWithoutReviewsLastWhateverRatingTheyStore() {
+        insertWithoutReviews("p07", 0.0);
+        insertWithoutReviews("p08", 5.0);
+
+        assertThat(ids(catalogRepository.search(sorted("rating-desc"))))
+                .containsExactly("p05", "p01", "p02", "p04", "p03", "p07", "p08");
+        assertThat(ids(catalogRepository.search(sorted("rating-asc"))))
+                .containsExactly("p04", "p02", "p01", "p05", "p03", "p07", "p08");
+    }
+
+    @Test
     void returnsTheHighestPriceOfTheAvailableProducts() {
         assertThat(catalogRepository.findMaxAvailablePrice()).isEqualByComparingTo("200");
     }
@@ -130,6 +153,10 @@ class ProductCatalogRepositoryTest {
 
     private CatalogSearch sorted(String sort) {
         return new CatalogSearch(null, null, null, null, null, null, null, sort, 0, 12);
+    }
+
+    private CatalogSearch withMinRating(Double minRating) {
+        return new CatalogSearch(null, null, null, null, minRating, null, null, null, 0, 12);
     }
 
     private List<String> ids(CatalogResult result) {
@@ -154,8 +181,22 @@ class ProductCatalogRepositoryTest {
             product.append("discount", discount);
         }
         if (rating != null) {
-            product.append("rating", rating);
+            product.append("rating", rating).append("reviewCount", 1);
         }
         mongoTemplate.getCollection("products").insertOne(product);
+    }
+
+    // Producto sin valoraciones que aun así guarda una nota (datos antiguos o reseñas retiradas)
+    private void insertWithoutReviews(String id, double storedRating) {
+        mongoTemplate.getCollection("products").insertOne(new Document("_id", id)
+                .append("name", "Sin reseñas " + id)
+                .append("description", "Nunca valorado")
+                .append("categoryIds", List.of("cat-hogar"))
+                .append("price", "10")
+                .append("stock", 1)
+                .append("available", true)
+                .append("sellerId", "seller-" + id)
+                .append("rating", storedRating)
+                .append("reviewCount", 0));
     }
 }
