@@ -22,6 +22,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
@@ -73,6 +74,9 @@ class CancelarPedidoTest {
     private GeneralConfigurationService generalConfigurationService;
 
     @Mock
+    private ApplicationEventPublisher eventPublisher;
+
+    @Mock
     private Order order;
 
     private OrderService orderService;
@@ -86,7 +90,8 @@ class CancelarPedidoTest {
                 orderRepository,
                 mongoTemplate,
                 paymentGateway,
-                generalConfigurationService);
+                generalConfigurationService,
+                eventPublisher);
 
         when(userRepository.findById(CUSTOMER_ID)).thenReturn(Optional.of(createCustomer()));
         when(orderRepository.findByIdAndCustomerId(ORDER_ID, CUSTOMER_ID))

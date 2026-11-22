@@ -57,6 +57,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import org.springframework.context.ApplicationEventPublisher;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
@@ -91,6 +92,9 @@ class OrderServiceTest {
         @Mock
         private GeneralConfigurationService generalConfigurationService;
 
+        @Mock
+        private ApplicationEventPublisher eventPublisher;
+
         private OrderService orderService;
         private Cart cart;
 
@@ -103,7 +107,8 @@ class OrderServiceTest {
                                 orderRepository,
                                 mongoTemplate,
                                 paymentGateway,
-                                generalConfigurationService);
+                                generalConfigurationService,
+                                eventPublisher);
 
                 lenient().when(generalConfigurationService.getCurrent())
                                 .thenReturn(new GeneralConfiguration(
