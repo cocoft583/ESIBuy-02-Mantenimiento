@@ -2,6 +2,7 @@ package es.uclm.esibuy.statistics.repository;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -29,6 +30,10 @@ public class MongoStatisticsRepository implements StatisticsRepository {
     private static final String PRODUCTS_COLLECTION = "products";
     private static final String RATING = "rating";
     private static final String REVIEW_COUNT = "reviewCount";
+    private static final String SELLER_ID = "sellerId";
+    private static final String AVERAGE_RATING = "averageRating";
+    private static final String RATED_PRODUCTS = "ratedProducts";
+    private static final String PLATFORM_AVERAGE = "platformAverage";
     private static final String ID = "_id";
 
     private final MongoTemplate mongoTemplate;
@@ -94,14 +99,49 @@ public class MongoStatisticsRepository implements StatisticsRepository {
 
     @Override
     public List<SellerRatingRow> findTopRatedSellers(int limit) {
-        // Se implementa en T23.2
-        return List.of();
+        List<AggregationOperation> operations = new ArrayList<>(sellerAverages());
+        // El desempate por productos valorados y luego por identificador hace que el top sea
+        // siempre el mismo (RN-01)
+        operations.add(Aggregation.sort(Sort.by(Sort.Direction.DESC, AVERAGE_RATING)
+                .and(Sort.by(Sort.Direction.DESC, RATED_PRODUCTS))
+                .and(Sort.by(Sort.Direction.ASC, ID))));
+        operations.add(Aggregation.limit(limit));
+
+        return mongoTemplate.aggregate(Aggregation.newAggregation(operations), PRODUCTS_COLLECTION, Document.class)
+                .getMappedResults().stream()
+                .map(document -> new SellerRatingRow(
+                        document.getString(ID),
+                        ((Number) document.get(AVERAGE_RATING)).doubleValue(),
+                        ((Number) document.get(RATED_PRODUCTS)).intValue()))
+                .toList();
     }
 
     @Override
     public Double findPlatformAverageRating() {
-        // Se implementa en T23.2
-        return null;
+        // La media de la plataforma sale de las medias de los vendedores, no de todas las valoraciones
+        List<AggregationOperation> operations = new ArrayList<>(sellerAverages());
+        operations.add(Aggregation.group().avg(AVERAGE_RATING).as(PLATFORM_AVERAGE));
+
+        Document result = mongoTemplate
+                .aggregate(Aggregation.newAggregation(operations), PRODUCTS_COLLECTION, Document.class)
+                .getUniqueMappedResult();
+
+        return result == null ? null : ((Number) result.get(PLATFORM_AVERAGE)).doubleValue();
+    }
+
+    /**
+     * Valoración media de cada vendedor: la media de las medias de sus productos con valoraciones.
+     * Un producto sin valoraciones no cuenta aunque guarde una nota, y uno sin vendedor no se
+     * puede atribuir a nadie.
+     */
+    private List<AggregationOperation> sellerAverages() {
+        return List.of(
+                Aggregation.match(Criteria.where(REVIEW_COUNT).gte(1)
+                        .and(RATING).gte(0)
+                        .and(SELLER_ID).nin(Arrays.asList(null, ""))),
+                Aggregation.group(SELLER_ID)
+                        .avg(RATING).as(AVERAGE_RATING)
+                        .count().as(RATED_PRODUCTS));
     }
 
     /**
