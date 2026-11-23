@@ -6,8 +6,10 @@ import java.util.List;
 import es.uclm.esibuy.common.exception.ApiExceptionHandler;
 import es.uclm.esibuy.security.AuthenticatedUserPrincipal;
 import es.uclm.esibuy.security.config.SecurityConfig;
+import es.uclm.esibuy.statistics.dto.ProductRatingDTO;
 import es.uclm.esibuy.statistics.dto.ProductSalesDTO;
 import es.uclm.esibuy.statistics.dto.SalesStatisticsDTO;
+import es.uclm.esibuy.statistics.dto.SellerRatingStatisticsDTO;
 import es.uclm.esibuy.statistics.model.StatisticsScope;
 import es.uclm.esibuy.statistics.service.StatisticsService;
 import es.uclm.esibuy.users.model.UserRole;
@@ -36,6 +38,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class SellerStatisticsControllerTest {
 
     private static final String API = "/api/seller/statistics/sales";
+    private static final String RATINGS_API = "/api/seller/statistics/ratings";
     private static final String SELLER_ID = "vendedor-1";
 
     @Autowired
@@ -122,5 +125,61 @@ class SellerStatisticsControllerTest {
         mockMvc.perform(get(API)).andExpect(status().isUnauthorized());
 
         verify(statisticsService, never()).getSales(any(), any());
+    }
+
+    private SellerRatingStatisticsDTO sellerRatings() {
+        ProductRatingDTO best = new ProductRatingDTO("p1", "Teclado", SELLER_ID, "Tienda Ana", 4.75, 8);
+        ProductRatingDTO worst = new ProductRatingDTO("p2", "Ratón", SELLER_ID, "Tienda Ana", 2.0, 3);
+        return new SellerRatingStatisticsDTO(List.of(best, worst), List.of(worst, best), 3.38, 2, 4.1);
+    }
+
+    @Test
+    @DisplayName("HU25-CP10: el vendedor ve sus mejor y peor valorados, su media y la de la plataforma")
+    void shouldShowTheSellerItsRatings() throws Exception {
+        when(statisticsService.getSellerRatings(SELLER_ID)).thenReturn(sellerRatings());
+
+        mockMvc.perform(get(RATINGS_API).with(authentication(authenticationFor(SELLER_ID, UserRole.SELLER))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.topRated.length()").value(2))
+                .andExpect(jsonPath("$.topRated[0].productId").value("p1"))
+                .andExpect(jsonPath("$.topRated[0].rating").value(4.75))
+                .andExpect(jsonPath("$.topRated[0].reviewCount").value(8))
+                .andExpect(jsonPath("$.worstRated[0].productId").value("p2"))
+                .andExpect(jsonPath("$.averageRating").value(3.38))
+                .andExpect(jsonPath("$.ratedProducts").value(2))
+                .andExpect(jsonPath("$.platformAverage").value(4.1));
+    }
+
+    @Test
+    @DisplayName("HU25-CP11: las valoraciones son siempre las del vendedor de la sesión")
+    void shouldAlwaysUseTheSellerOfTheSessionForRatings() throws Exception {
+        when(statisticsService.getSellerRatings(SELLER_ID)).thenReturn(sellerRatings());
+
+        mockMvc.perform(get(RATINGS_API)
+                        .param("sellerId", "vendedor-2")
+                        .with(authentication(authenticationFor(SELLER_ID, UserRole.SELLER))))
+                .andExpect(status().isOk());
+
+        verify(statisticsService).getSellerRatings(SELLER_ID);
+        verify(statisticsService, never()).getSellerRatings("vendedor-2");
+    }
+
+    @Test
+    @DisplayName("HU25-CP12: un cliente o un administrador no pueden ver las valoraciones de un vendedor")
+    void shouldForbidClientsAndAdminsFromSellerRatings() throws Exception {
+        for (UserRole role : List.of(UserRole.CLIENT, UserRole.ADMIN)) {
+            mockMvc.perform(get(RATINGS_API).with(authentication(authenticationFor("user-1", role))))
+                    .andExpect(status().isForbidden());
+        }
+
+        verify(statisticsService, never()).getSellerRatings(any());
+    }
+
+    @Test
+    @DisplayName("HU25-CP13: sin sesión no se pueden ver las valoraciones del vendedor")
+    void shouldRejectRatingsRequestsWithoutSession() throws Exception {
+        mockMvc.perform(get(RATINGS_API)).andExpect(status().isUnauthorized());
+
+        verify(statisticsService, never()).getSellerRatings(any());
     }
 }

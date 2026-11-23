@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import es.uclm.esibuy.security.AuthenticatedUserPrincipal;
 import es.uclm.esibuy.statistics.dto.SalesStatisticsDTO;
+import es.uclm.esibuy.statistics.dto.SellerRatingStatisticsDTO;
 import es.uclm.esibuy.statistics.model.StatisticsScope;
 import es.uclm.esibuy.statistics.service.StatisticsService;
 
@@ -34,5 +35,15 @@ public class SellerStatisticsController {
     @GetMapping("/sales")
     public SalesStatisticsDTO getSales(@AuthenticationPrincipal AuthenticatedUserPrincipal principal) {
         return statisticsService.getSales(StatisticsScope.VENDEDOR, principal.id());
+    }
+
+    /**
+     * Los 10 productos mejor valorados y los 10 peor valorados del vendedor, su valoración media
+     * (la misma que ve el administrador) y la de la plataforma. Como en las ventas, el vendedor
+     * sale siempre de la sesión.
+     */
+    @GetMapping("/ratings")
+    public SellerRatingStatisticsDTO getRatings(@AuthenticationPrincipal AuthenticatedUserPrincipal principal) {
+        return statisticsService.getSellerRatings(principal.id());
     }
 }
