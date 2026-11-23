@@ -6,6 +6,7 @@ import {
   ProductSales,
   RatingStatistics,
   SellerProductSummary,
+  SellerRatingStatistics,
   SellerSalesStatistics,
   StatisticsService,
 } from './statistics.service';
@@ -143,5 +144,39 @@ describe('StatisticsService', () => {
     expect(ratings?.topProducts[0].sellerName).toBeNull();
     expect(ratings?.platformAverage).toBeNull();
     expect(ratings?.minimumReviews).toBe(5);
+  });
+
+  it('asks the seller endpoint for its ratings with the session cookie', () => {
+    let ratings: SellerRatingStatistics | undefined;
+    service.getSellerRatings().subscribe((value) => (ratings = value));
+
+    const request = httpTesting.expectOne('/api/seller/statistics/ratings');
+    expect(request.request.method).toBe('GET');
+    expect(request.request.withCredentials).toBe(true);
+    expect(request.request.params.keys()).toEqual([]);
+    request.flush({
+      topRated: [{ productId: 'p-1', productName: 'Teclado', sellerId: 's-1', sellerName: 'Tienda Ana', rating: '4.67', reviewCount: 3 }],
+      worstRated: [{ productId: 'p-2', productName: 'Ratón', sellerId: 's-1', sellerName: 'Tienda Ana', rating: 2, reviewCount: 1 }],
+      averageRating: 3.33,
+      ratedProducts: 2,
+      platformAverage: 4.1,
+    });
+
+    expect(ratings?.topRated).toEqual([
+      { productId: 'p-1', productName: 'Teclado', sellerId: 's-1', sellerName: 'Tienda Ana', rating: 4.67, reviewCount: 3 },
+    ]);
+    expect(ratings?.worstRated[0].productId).toBe('p-2');
+    expect(ratings?.averageRating).toBe(3.33);
+    expect(ratings?.ratedProducts).toBe(2);
+    expect(ratings?.platformAverage).toBe(4.1);
+  });
+
+  it('treats missing seller ratings as empty lists and missing averages as null', () => {
+    let ratings: SellerRatingStatistics | undefined;
+    service.getSellerRatings().subscribe((value) => (ratings = value));
+
+    httpTesting.expectOne('/api/seller/statistics/ratings').flush({ ratedProducts: 0 });
+
+    expect(ratings).toEqual({ topRated: [], worstRated: [], averageRating: null, ratedProducts: 0, platformAverage: null });
   });
 });

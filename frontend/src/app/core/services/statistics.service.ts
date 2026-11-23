@@ -64,6 +64,43 @@ interface SellerSalesStatisticsResponse {
   leastSold?: ProductSalesResponse[] | null;
 }
 
+/** Valoraciones del vendedor de la sesión (GET /api/seller/statistics/ratings). */
+export interface SellerRatingStatistics {
+  /** Sus 10 productos mejor valorados, de más a menos nota. */
+  topRated: ProductRating[];
+  /** Sus 10 productos peor valorados, de menos a más nota. */
+  worstRated: ProductRating[];
+  /** Su valoración media, la misma que ve el administrador; null si no tiene ninguna. */
+  averageRating: number | null;
+  ratedProducts: number;
+  platformAverage: number | null;
+}
+
+type ProductRatingResponse = Omit<ProductRating, 'sellerId' | 'sellerName' | 'rating'> & {
+  sellerId?: string | null;
+  sellerName?: string | null;
+  rating: number | string;
+};
+
+interface SellerRatingStatisticsResponse {
+  topRated?: ProductRatingResponse[] | null;
+  worstRated?: ProductRatingResponse[] | null;
+  averageRating?: number | null;
+  ratedProducts?: number;
+  platformAverage?: number | null;
+}
+
+function toProductRating(row: ProductRatingResponse): ProductRating {
+  return {
+    productId: row.productId,
+    productName: row.productName,
+    sellerId: row.sellerId ?? null,
+    sellerName: row.sellerName ?? null,
+    rating: Number(row.rating),
+    reviewCount: Number(row.reviewCount),
+  };
+}
+
 /** Métricas rápidas del catálogo del vendedor (GET /api/products/summary). */
 export interface SellerProductSummary {
   totalProducts: number;
@@ -105,6 +142,22 @@ export class StatisticsService {
       .pipe(map((response) => ({
         topSold: (response.topSold ?? []).map(toProductSales),
         leastSold: (response.leastSold ?? []).map(toProductSales),
+      })));
+  }
+
+  /**
+   * Los 10 productos mejor valorados y los 10 peor valorados del vendedor de la sesión, su
+   * valoración media y la de la plataforma. Como en las ventas, el vendedor sale de la sesión.
+   */
+  getSellerRatings(): Observable<SellerRatingStatistics> {
+    return this.http
+      .get<SellerRatingStatisticsResponse>('/api/seller/statistics/ratings', { withCredentials: true })
+      .pipe(map((response) => ({
+        topRated: (response.topRated ?? []).map(toProductRating),
+        worstRated: (response.worstRated ?? []).map(toProductRating),
+        averageRating: response.averageRating ?? null,
+        ratedProducts: Number(response.ratedProducts ?? 0),
+        platformAverage: response.platformAverage ?? null,
       })));
   }
 

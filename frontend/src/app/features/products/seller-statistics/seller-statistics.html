@@ -18,12 +18,12 @@
             <p class="eyebrow">GESTIÓN DE VENTA</p>
             <h1>Estadísticas</h1>
             <p class="page-description">
-              Qué productos se venden más y cuáles menos, para decidir qué mejorar o retirar.
-              Solo cuentan los pedidos pagados que no se han cancelado.
+              Qué productos se venden más y cuáles menos, para decidir qué mejorar o retirar,
+              y qué opinan de ellos los clientes.
             </p>
           </div>
-          <button type="button" class="refresh-button" (click)="load()" [disabled]="loading()">
-            <svg viewBox="0 0 24 24" aria-hidden="true" [class.is-spinning]="loading()">
+          <button type="button" class="refresh-button" (click)="refresh()" [disabled]="refreshing()">
+            <svg viewBox="0 0 24 24" aria-hidden="true" [class.is-spinning]="refreshing()">
               <path d="M21 12a9 9 0 1 1-2.64-6.36" />
               <path d="M21 3v6h-6" />
             </svg>
@@ -54,7 +54,29 @@
         </section>
         }
 
-        <section class="statistics-section" aria-labelledby="sales-title">
+        <div class="statistics-tabs" role="tablist" aria-label="Apartados de las estadísticas">
+          <button type="button" role="tab" id="statistics-tab-sales" aria-controls="statistics-panel-sales"
+            [attr.aria-selected]="section() === 'sales'" [attr.tabindex]="section() === 'sales' ? 0 : -1"
+            [class.is-active]="section() === 'sales'" (click)="openSection('sales')" (keydown)="onTabKeydown($event)">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 3v18h18" />
+              <path d="m7 15 4-4 3 3 6-7" />
+            </svg>
+            Ventas
+          </button>
+          <button type="button" role="tab" id="statistics-tab-ratings" aria-controls="statistics-panel-ratings"
+            [attr.aria-selected]="section() === 'ratings'" [attr.tabindex]="section() === 'ratings' ? 0 : -1"
+            [class.is-active]="section() === 'ratings'" (click)="openSection('ratings')" (keydown)="onTabKeydown($event)">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9Z" />
+            </svg>
+            Valoraciones
+          </button>
+        </div>
+
+        @if (section() === 'sales') {
+        <section class="statistics-section" id="statistics-panel-sales" role="tabpanel"
+          aria-labelledby="statistics-tab-sales">
           <div class="section-heading">
             <span class="section-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24">
@@ -128,6 +150,102 @@
           </div>
           }
         </section>
+        } @else {
+        <section class="statistics-section" id="statistics-panel-ratings" role="tabpanel"
+          aria-labelledby="statistics-tab-ratings">
+          <div class="section-heading">
+            <span class="section-icon section-icon--ratings" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9Z" />
+              </svg>
+            </span>
+            <div>
+              <h2>Valoraciones</h2>
+              <p>Tus 10 productos mejor valorados y tus 10 peor valorados, entre los que tienen alguna valoración.</p>
+            </div>
+          </div>
+
+          @if (ratingsLoading()) {
+          <output class="state-message" aria-live="polite">
+            <span class="loader" aria-hidden="true"></span>
+            Cargando tus valoraciones…
+          </output>
+          } @else if (ratingsError(); as message) {
+          <div class="statistics-error">
+            <p class="alert is-error" role="alert">{{ message }}</p>
+            <button class="secondary-button retry-button" type="button" (click)="loadRatings()">Reintentar</button>
+          </div>
+          } @else if (ratings(); as data) {
+          <div class="kpi-grid">
+            <article class="kpi-card is-highlight" style="--card-index: 0">
+              <p class="kpi-label">Tu valoración media</p>
+              @if (data.averageRating !== null) {
+              <p class="kpi-value">
+                <span [appCountUp]="data.averageRating" countUpFormat="rating"></span>
+                <span class="kpi-star" aria-hidden="true">★</span>
+              </p>
+              } @else {
+              <p class="kpi-value kpi-value--text">Sin datos</p>
+              }
+              <p class="kpi-hint">Media de las medias de tus productos, la misma que ve el administrador</p>
+            </article>
+            <article class="kpi-card" style="--card-index: 1">
+              <p class="kpi-label">Media de la plataforma</p>
+              @if (data.platformAverage !== null) {
+              <p class="kpi-value">
+                <span [appCountUp]="data.platformAverage" countUpFormat="rating"></span>
+                <span class="kpi-star" aria-hidden="true">★</span>
+              </p>
+              } @else {
+              <p class="kpi-value kpi-value--text">Sin datos</p>
+              }
+              <p class="kpi-hint">Media de las medias de todos los vendedores</p>
+            </article>
+            <article class="kpi-card" style="--card-index: 2">
+              <p class="kpi-label">Productos valorados</p>
+              <p class="kpi-value" [appCountUp]="data.ratedProducts"></p>
+              <p class="kpi-hint">Los que entran en tu media</p>
+            </article>
+            <article class="kpi-card" style="--card-index: 3">
+              <p class="kpi-label">Mejor valorado</p>
+              @if (bestRated(); as product) {
+              <p class="kpi-value kpi-value--text" [attr.title]="product.productName">{{ product.productName }}</p>
+              <p class="kpi-hint">
+                <span [appCountUp]="product.rating" countUpFormat="rating"></span> ★ ·
+                {{ product.reviewCount }} {{ product.reviewCount === 1 ? 'valoración' : 'valoraciones' }}
+              </p>
+              } @else {
+              <p class="kpi-value kpi-value--text">Ninguno todavía</p>
+              <p class="kpi-hint">Aún no te han valorado</p>
+              }
+            </article>
+          </div>
+
+          @if (hasNoRatings()) {
+          <div class="statistics-empty">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9Z" />
+            </svg>
+            <p>Todavía no tienes valoraciones. Cuando los clientes valoren lo que te han comprado aparecerán aquí.</p>
+          </div>
+          } @else {
+          <div class="ranking-stack">
+            <app-statistics-ranking heading="Tus productos mejor valorados"
+              description="De más a menos nota; con la misma nota, primero el que tiene más valoraciones."
+              labelHeader="Producto" detailHeader="Valoraciones" [rows]="topRatedRows()" [metrics]="ratingMetrics"
+              [chartTypes]="['bar', 'polarArea']" [reference]="sellerReference()"
+              emptyMessage="Ningún producto tuyo tiene valoraciones todavía." />
+
+            <app-statistics-ranking heading="Tus productos peor valorados"
+              description="De menos a más nota: lo que más conviene mejorar sale primero."
+              labelHeader="Producto" detailHeader="Valoraciones" [rows]="worstRatedRows()" [metrics]="ratingMetrics"
+              [chartTypes]="['bar', 'polarArea']" [reference]="sellerReference()" initialView="table"
+              emptyMessage="Ningún producto tuyo tiene valoraciones todavía." />
+          </div>
+          }
+          }
+        </section>
+        }
       </div>
     </main>
   </div>
