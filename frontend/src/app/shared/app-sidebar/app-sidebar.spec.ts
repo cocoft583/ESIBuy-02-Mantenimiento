@@ -1,6 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { vi } from 'vitest';
+import { AlertsService } from '../../core/services/alerts.service';
 import { AppSidebarComponent } from './app-sidebar';
 
 function simulateViewport(mobile: boolean): void {
@@ -37,7 +39,10 @@ describe('AppSidebarComponent', () => {
     localStorage.clear();
     TestBed.configureTestingModule({
       imports: [AppSidebarComponent],
-      providers: [provideRouter([])],
+      providers: [
+        provideRouter([]),
+        { provide: AlertsService, useValue: { unreadCount: signal(2).asReadonly(), startWatching: vi.fn() } },
+      ],
     });
   });
 
@@ -60,6 +65,23 @@ describe('AppSidebarComponent', () => {
     const link = fixture.nativeElement.querySelector('a[href="/seller/estadisticas"]') as HTMLAnchorElement | null;
     expect(link?.textContent?.trim()).toBe('Estadísticas');
     expect(link?.getAttribute('aria-disabled')).toBeNull();
+  });
+
+  it('el menú del cliente enlaza su bandeja de alertas con la campana y el contador', () => {
+    create();
+    fixture.detectChanges();
+
+    const link = fixture.nativeElement.querySelector('a[href="/client/alerts"]') as HTMLAnchorElement | null;
+    expect(link?.querySelector('app-alerts-bell')).not.toBeNull();
+    expect(link?.querySelector('.alerts-badge')?.textContent?.trim()).toBe('2');
+    expect(link?.textContent).toContain('Alertas');
+  });
+
+  it('los menús del vendedor y del administrador no tienen campana de alertas', () => {
+    create();
+    component.variant = 'seller';
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('app-alerts-bell')).toBeNull();
   });
 
   it('en escritorio recupera la barra plegada que se guardó', () => {

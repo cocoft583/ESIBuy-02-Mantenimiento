@@ -122,6 +122,12 @@
       </svg>
       <span>Carrito</span>
     </a>
+
+    <a class="navigation-link" routerLink="/client/alerts" routerLinkActive="is-active"
+      [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">
+      <app-alerts-bell class="navigation-icon" />
+      <span>Alertas</span>
+    </a>
   </nav>
   } @else {
   <nav class="app-navigation" aria-label="Navegación del vendedor">

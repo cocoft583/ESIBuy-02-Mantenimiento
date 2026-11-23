@@ -1,6 +1,7 @@
 import { isPlatformBrowser } from '@angular/common';
 import { Component, EventEmitter, Inject, Input, OnInit, Output, PLATFORM_ID } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
+import { AlertsBell } from '../alerts-bell/alerts-bell';
 
 export type SidebarVariant = 'admin' | 'seller' | 'seller-compact' | 'client';
 
@@ -10,7 +11,7 @@ const MOBILE_QUERY = '(max-width: 760px)';
 @Component({
   selector: 'app-shared-sidebar',
   standalone: true,
-  imports: [RouterLink, RouterLinkActive],
+  imports: [RouterLink, RouterLinkActive, AlertsBell],
   templateUrl: './app-sidebar.html',
   styleUrl: './app-sidebar.css',
 })

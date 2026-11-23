@@ -57,13 +57,14 @@ describe('ClientOrders', () => {
     expect(el.querySelector('#orders-sort')).toBeTruthy();
 
     const navLinks = Array.from(el.querySelectorAll('.app-navigation .navigation-link'));
-    expect(navLinks.length).toBe(4);
+    expect(navLinks.length).toBe(5);
     expect(navLinks[0].textContent).toContain('Catálogo');
     expect(navLinks[1].textContent).toContain('Lista de deseos');
     expect(navLinks[2].textContent).toContain('Mis pedidos');
     expect(navLinks[2].classList.contains('is-active')).toBe(true);
     expect(navLinks[2].querySelector('svg path')?.getAttribute('d')).toContain('M21 8');
     expect(navLinks[3].textContent).toContain('Carrito');
+    expect(navLinks[4].getAttribute('href')).toBe('/client/alerts');
   });
 
   it('lets a client review an item from a delivered order and marks it as reviewed after saving', async () => {

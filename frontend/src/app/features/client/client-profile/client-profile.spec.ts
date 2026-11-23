@@ -97,7 +97,7 @@ describe('ClientProfile', () => {
             '.app-navigation .navigation-link',
         );
 
-        expect(clientLinks).toHaveLength(4);
+        expect(clientLinks).toHaveLength(5);
         expect(clientLinks[2].textContent).toContain('Mis pedidos');
 
         expect(
