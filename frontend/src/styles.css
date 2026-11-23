@@ -452,9 +452,9 @@ body {
   box-sizing: border-box;
 }
 
-/* La barra de pestañas del cliente va fija abajo: hueco para que no tape el pie */
+/* En la app la barra de pestañas del cliente va fija abajo: hueco para que no tape el pie */
 @media (max-width: 760px) {
-  body:has(.app-sidebar--client) {
+  html.native-app body:has(.app-sidebar--client) {
     padding-bottom: calc(66px + env(safe-area-inset-bottom));
   }
 }
@@ -472,6 +472,7 @@ body {
  * iOS amplía la página al enfocar un campo con letra de menos de 16 px y no
  * la vuelve a reducir, lo que deja desplazamiento lateral (login de la app).
  * Los estilos de componente tienen más especificidad, de ahí el !important.
+ * Vale también para la web en Safari del iPhone, no solo para la app.
  */
 @media (hover: none) and (pointer: coarse) {
   input,

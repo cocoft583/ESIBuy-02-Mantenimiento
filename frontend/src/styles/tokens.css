@@ -113,8 +113,7 @@
      LAYOUT
      ======================================== */
 
-  /* En la app móvil la cabecera ocupa también la zona de la barra de estado (notch) */
-  --app-header-height: calc(4rem + env(safe-area-inset-top, 0px));
+  --app-header-height: 4rem;
   --app-sidebar-width: 248px;
   --app-content-max-width: 1200px;
 
@@ -125,4 +124,9 @@
   --transition-fast: 150ms ease;
   --transition-normal: 200ms ease;
   --transition-slow: 300ms ease;
+}
+
+/* En la app móvil la cabecera ocupa también la zona de la barra de estado (notch) */
+:root.native-app {
+  --app-header-height: calc(4rem + env(safe-area-inset-top, 0px));
 }

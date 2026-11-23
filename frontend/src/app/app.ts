@@ -1,6 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, effect, HostListener, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterOutlet } from '@angular/router';
+import { AppPlatform } from './core/services/app-platform';
 import { AuthService } from './core/services/auth.service';
 import { CartService } from './core/services/cart.service';
 import { NetworkStatus } from './core/services/network-status';
@@ -23,6 +24,11 @@ export class App {
 
   constructor() {
     void inject(NetworkStatus).start();
+
+    // Los estilos propios de la app (barra inferior, notch, campos a 16 px) cuelgan de esta clase
+    if (inject(AppPlatform).isNativeApp()) {
+      document.documentElement.classList.add('native-app');
+    }
 
     effect(() => {
       if (this.authService.currentUser()?.role === 'CLIENT') {
