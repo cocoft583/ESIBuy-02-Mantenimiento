@@ -17,4 +17,7 @@ public interface UserRepository extends MongoRepository<User, String> {
     Optional<User> findByEmailIgnoreCase(String email);
 
     List<User> findByRoleIn(Collection<UserRole> roles);
+
+    /** Clientes con alguna de esas categorías entre sus favoritas ($in sobre la lista, HU28). */
+    List<User> findAllByClientProfileFavoriteCategoryIdsIn(Collection<String> categoryIds);
 }
