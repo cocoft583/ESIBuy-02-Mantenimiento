@@ -144,7 +144,29 @@ describe('ClientProfile', () => {
             '.sidebar-nav .nav-item',
         );
 
-        expect(navItems.length).toBe(4);
+        expect(navItems.length).toBe(5);
+    });
+
+    // HU26: las categorías favoritas se eligen desde el perfil
+    it('abre la sección de categorías favoritas desde el menú del perfil', async () => {
+        const favoritesItem = Array.from<HTMLButtonElement>(
+            fixture.nativeElement.querySelectorAll('.sidebar-nav .nav-item'),
+        ).find((item) => item.textContent?.trim() === 'Categorías favoritas');
+
+        expect(favoritesItem).toBeDefined();
+        favoritesItem?.click();
+        fixture.detectChanges();
+
+        expect(favoritesItem?.getAttribute('aria-current')).toBe('page');
+        expect(fixture.nativeElement.querySelector('app-favorite-categories')).not.toBeNull();
+
+        httpMock.expectOne('/api/categorias').flush([{ id: 'cat-1', name: 'Moda' }]);
+        httpMock.expectOne('/api/users/me/favorite-categories').flush({ categoryIds: ['cat-1'] });
+        fixture.detectChanges();
+        await fixture.whenStable();
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.querySelector('.category-option')?.textContent).toContain('Moda');
     });
 
     it('cierra sesión y vuelve al inicio', () => {

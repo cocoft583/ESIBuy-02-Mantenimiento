@@ -1,0 +1,75 @@
+<section class="favorites-page" aria-labelledby="favorites-title">
+    <header class="page-heading">
+        <div class="heading-copy">
+            <p class="eyebrow">MI CUENTA</p>
+            <h1 id="favorites-title">Mis categorías favoritas</h1>
+            <p class="page-description">
+                Elige las categorías que te interesan: te avisaremos cuando haya productos nuevos en ellas.
+            </p>
+        </div>
+    </header>
+
+    @if (success(); as message) {
+    <output class="success-message" aria-live="polite">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m5 12 4 4L19 6"></path>
+        </svg>
+        {{ message }}
+    </output>
+    }
+
+    @if (loading()) {
+    <output class="state-message" aria-live="polite">
+        <span class="loading-spinner" aria-hidden="true"></span>
+        Cargando las categorías…
+    </output>
+    } @else if (loadError(); as message) {
+    <div class="form-error" role="alert">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="9"></circle>
+            <path d="M12 8v5M12 16h.01"></path>
+        </svg>
+        <span>{{ message }}</span>
+    </div>
+    <button type="button" class="secondary-button retry-button" (click)="load()">Reintentar</button>
+    } @else if (categories().length === 0) {
+    <div class="favorites-empty">
+        <p>Todavía no hay categorías en la tienda. Cuando el administrador cree alguna podrás elegirla aquí.</p>
+    </div>
+    } @else {
+    <fieldset class="category-list" [disabled]="saving()">
+        <legend class="visually-hidden">Categorías</legend>
+        @for (category of categories(); track category.id) {
+        <label class="category-option" [class.is-selected]="isSelected(category.id)">
+            <input type="checkbox" [checked]="isSelected(category.id)" (change)="toggle(category.id)" />
+            <span>{{ category.name }}</span>
+        </label>
+        }
+    </fieldset>
+
+    @if (saveError(); as message) {
+    <div class="form-error" role="alert">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="9"></circle>
+            <path d="M12 8v5M12 16h.01"></path>
+        </svg>
+        <span>{{ message }}</span>
+    </div>
+    }
+
+    <footer class="favorites-actions">
+        <p class="selected-count" aria-live="polite">{{ selectedLabel() }}</p>
+        <div class="action-buttons">
+            @if (dirty()) {
+            <button type="button" class="secondary-button discard-favorites" (click)="discard()" [disabled]="saving()">
+                Descartar cambios
+            </button>
+            }
+            <button type="button" class="primary-action save-favorites" (click)="save()"
+                [disabled]="!dirty() || saving()">
+                {{ saving() ? 'Guardando…' : 'Guardar' }}
+            </button>
+        </div>
+    </footer>
+    }
+</section>

@@ -49,6 +49,12 @@
                         (click)="selectSection('payments')">
                         Métodos de pago
                     </button>
+
+                    <button type="button" class="nav-item" [class.active]="activeSection() === 'favorites'"
+                        [attr.aria-current]="activeSection() === 'favorites' ? 'page' : null"
+                        (click)="selectSection('favorites')">
+                        Categorías favoritas
+                    </button>
                 </nav>
 
                 <div class="sidebar-footer">
@@ -486,6 +492,11 @@
                 <!-- MÉTODOS DE PAGO -->
                 @if (activeSection() === 'payments') {
                 <app-payment-methods />
+                }
+
+                <!-- CATEGORÍAS FAVORITAS (HU26) -->
+                @if (activeSection() === 'favorites') {
+                <app-favorite-categories />
                 }
                 }
             </main>

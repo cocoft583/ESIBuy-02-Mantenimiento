@@ -9,6 +9,7 @@ import { DeleteAccount } from '../../../shared/delete-account/delete-account';
 import { TwoFactorSettingsComponent } from '../../../shared/two-factor-settings/two-factor-settings';
 import { ShippingAddresses } from '../shipping-addresses/shipping-addresses';
 import { PaymentMethods } from '../payment-methods/payment-methods';
+import { FavoriteCategories } from '../favorite-categories/favorite-categories';
 import { CLIENT_AVATARS } from '../../../core/constants/avatars';
 import type { ProfileNavigationItem } from '../../../shared/profile-shell/profile-shell';
 import { AppSidebarComponent } from '../../../shared/app-sidebar/app-sidebar';
@@ -43,7 +44,15 @@ interface UpdateClientProfileRequest {
 @Component({
     selector: 'app-client-profile',
     standalone: true,
-    imports: [AppSidebarComponent, FormsModule, DeleteAccount, TwoFactorSettingsComponent, ShippingAddresses, PaymentMethods],
+    imports: [
+        AppSidebarComponent,
+        FormsModule,
+        DeleteAccount,
+        TwoFactorSettingsComponent,
+        ShippingAddresses,
+        PaymentMethods,
+        FavoriteCategories,
+    ],
     schemas: [CUSTOM_ELEMENTS_SCHEMA],
     templateUrl: './client-profile.html',
     styleUrl: './client-profile.css',
@@ -73,6 +82,7 @@ export class ClientProfile implements OnInit {
         { key: 'addresses', label: 'Direcciones de envío' },
         { key: 'security', label: 'Seguridad' },
         { key: 'payments', label: 'Métodos de pago' },
+        { key: 'favorites', label: 'Categorías favoritas' },
     ];
 
     // El estado 2FA se sincroniza con el componente compartido.
@@ -152,6 +162,7 @@ export class ClientProfile implements OnInit {
             'security',
             'addresses',
             'payments',
+            'favorites',
         ];
 
         if (!availableSections.includes(section)) {
