@@ -5,6 +5,7 @@ import { of } from 'rxjs';
 import { AuthService, AuthenticatedUser } from './core/services/auth.service';
 import { App } from './app';
 import { CartService } from './core/services/cart.service';
+import { AppPlatform } from './core/services/app-platform';
 
 describe('App', () => {
   let currentUser: WritableSignal<AuthenticatedUser | null>;
@@ -236,5 +237,25 @@ describe('App', () => {
     expect(roleButton).not.toBeNull();
     expect(roleButton?.textContent?.trim()).toBe('Gestión de usuarios');
     expect(roleButton?.getAttribute('href')).toBe('/admin/usuarios');
+  });
+
+  describe('estilos exclusivos de la app móvil', () => {
+    afterEach(() => document.documentElement.classList.remove('native-app'));
+
+    it('marca el documento con native-app cuando corre dentro de la app', () => {
+      TestBed.overrideProvider(AppPlatform, { useValue: { isNativeApp: () => true } });
+
+      TestBed.createComponent(App);
+
+      expect(document.documentElement.classList).toContain('native-app');
+    });
+
+    it('no marca el documento en el navegador, también en la web móvil', () => {
+      TestBed.overrideProvider(AppPlatform, { useValue: { isNativeApp: () => false } });
+
+      TestBed.createComponent(App);
+
+      expect(document.documentElement.classList).not.toContain('native-app');
+    });
   });
 });
