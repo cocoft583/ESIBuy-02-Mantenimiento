@@ -1,0 +1,86 @@
+<div class="seller-layout seller-shell" [class.app-sidebar-collapsed]="sidebarCollapsed()">
+  <app-shared-sidebar variant="client" [collapsed]="sidebarCollapsed()"
+    (collapsedChange)="sidebarCollapsed.set($event)" />
+
+  <div class="workspace app-workspace">
+    <main class="catalog-content">
+      <section class="page-heading alerts-page-heading" aria-labelledby="alerts-title">
+        <div>
+          <h1 id="alerts-title">Alertas</h1>
+          <p class="alerts-page-description">
+            Bajadas de precio y productos que vuelven a estar disponibles en tus listas de deseos, y novedades de tus
+            categorías favoritas.
+          </p>
+        </div>
+        @if (!loading() && !loadError() && sortedAlerts().length > 0) {
+        <button type="button" class="mark-all-button" (click)="markAllAsRead()"
+          [disabled]="unreadCount() === 0 || markingAll()">
+          Marcar todas como leídas
+        </button>
+        }
+      </section>
+
+      @if (loading()) {
+      <p class="alerts-feedback" aria-live="polite">Cargando tus alertas...</p>
+      } @else if (loadError()) {
+      <div class="alerts-feedback is-error" role="alert">
+        <p>{{ loadError() }}</p>
+        <button type="button" class="retry-button" (click)="load()">Volver a intentarlo</button>
+      </div>
+      } @else if (sortedAlerts().length === 0) {
+      <div class="alerts-feedback alerts-empty">
+        <p class="alerts-empty-title">No tienes alertas</p>
+        <p>Te avisaremos aquí cuando baje el precio de algo que te interesa o lleguen productos nuevos.</p>
+        <a routerLink="/client/catalog" class="catalog-link">Ver el catálogo</a>
+      </div>
+      } @else {
+      <p class="alerts-summary" aria-live="polite">
+        @if (unreadCount() === 0) {
+        Has leído todas tus alertas.
+        } @else if (unreadCount() === 1) {
+        Tienes 1 alerta sin leer.
+        } @else {
+        Tienes {{ unreadCount() }} alertas sin leer.
+        }
+      </p>
+
+      @if (actionError()) {
+      <p class="alerts-action-error" role="alert">{{ actionError() }}</p>
+      }
+
+      <ul class="alerts-list" aria-labelledby="alerts-title">
+        @for (alert of sortedAlerts(); track alert.id) {
+        <li class="alert-item" [class.is-unread]="!alert.read" [attr.data-type]="alert.type">
+          <div class="alert-body">
+            <div class="alert-meta">
+              <span class="alert-type">{{ typeLabel(alert.type) }}</span>
+              @if (!alert.read) {
+              <span class="alert-new">Nueva</span>
+              }
+              <time class="alert-date" [attr.datetime]="alert.createdAt">{{ formatDate(alert.createdAt) }}</time>
+            </div>
+            <a class="alert-product" [routerLink]="['/products', alert.productId]" (click)="open(alert)">
+              {{ alert.productName }}
+            </a>
+            <p class="alert-message">{{ alert.message }}</p>
+          </div>
+
+          <div class="alert-actions">
+            @if (!alert.read) {
+            <button type="button" class="alert-action" (click)="markAsRead(alert)" [disabled]="isBusy(alert.id)"
+              [attr.aria-label]="'Marcar como leída la alerta de ' + alert.productName">
+              Marcar como leída
+            </button>
+            }
+            <button type="button" class="alert-action is-danger" (click)="delete(alert)" [disabled]="isBusy(alert.id)"
+              [attr.aria-label]="'Eliminar la alerta de ' + alert.productName">
+              Eliminar
+            </button>
+          </div>
+        </li>
+        }
+      </ul>
+      }
+    </main>
+  </div>
+</div>
