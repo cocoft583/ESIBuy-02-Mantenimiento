@@ -1,4 +1,6 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
+import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ProductsService, ProductItem, Category } from '../../../core/services/products.service';
@@ -33,6 +35,8 @@ export class ProductDetail implements OnInit {
 
   readonly quantity = signal(1);
   readonly sidebarCollapsed = signal(false);
+  readonly productUnavailable = signal(false);
+  private readonly destroyRef = inject(DestroyRef);
 
   private readonly currencyFormatter = new Intl.NumberFormat('es-ES', {
     style: 'currency',
@@ -149,18 +153,23 @@ export class ProductDetail implements OnInit {
   });
 
   ngOnInit(): void {
-    const id = this.route.snapshot.paramMap.get('id');
-    if (!id) {
-      this.error.set(true);
-      this.errorMessage.set('Identificador de producto no válido');
-      this.loading.set(false);
-      return;
-    }
-
     this.loadCategories();
-    this.loadProduct(id);
-    this.loadProductReviews(id);
     this.wishlistService.refreshIfClient();
+
+    this.route.paramMap
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((paramMap) => {
+        const id = paramMap.get('id');
+        if (!id) {
+          this.productUnavailable.set(false);
+          this.error.set(true);
+          this.errorMessage.set('Identificador de producto no válido');
+          this.loading.set(false);
+          return;
+        }
+
+        this.loadProduct(id);
+      });
   }
 
   loadCategories(): void {
@@ -182,19 +191,32 @@ export class ProductDetail implements OnInit {
     this.loading.set(true);
     this.error.set(false);
     this.errorMessage.set(null);
+    this.productUnavailable.set(false);
+    this.product.set(null);
+    this.reviewSummary.set(null);
+    this.reviewsLoading.set(true);
+    this.reviewsError.set(false);
     this.imageError.set(false);
 
     this.productsService.getProductById(id).subscribe({
       next: (data) => {
         this.product.set(data);
         this.loading.set(false);
+        this.loadProductReviews(id);
       },
       error: (err) => {
         this.loading.set(false);
-        this.error.set(true);
-        if (err.status === 404) {
+        this.product.set(null);
+        if (err instanceof HttpErrorResponse
+          && err.status === 410
+          && err.error?.code === 'PRODUCT_UNAVAILABLE') {
+          this.error.set(false);
+          this.productUnavailable.set(true);
+        } else if (err instanceof HttpErrorResponse && err.status === 404) {
+          this.error.set(true);
           this.errorMessage.set('El producto no existe.');
         } else {
+          this.error.set(true);
           this.errorMessage.set('No se pudo cargar la información del producto.');
         }
       },

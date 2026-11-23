@@ -48,6 +48,13 @@
         <div class="spinner"></div>
         <span>Cargando detalle del producto…</span>
       </div>
+      } @else if (productUnavailable()) {
+      <div class="detail-error" role="alert">
+        <h2>Este producto ya no está disponible</h2>
+        <button type="button" class="action-btn" (click)="goBack()">
+          Volver al catálogo
+        </button>
+      </div>
       } @else if (error() || !product()) {
       <div class="detail-error" role="alert">
         <h2>Producto no disponible</h2>
