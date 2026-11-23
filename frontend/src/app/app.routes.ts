@@ -21,6 +21,7 @@ import { AdminProfile } from './features/admin/admin-profile/admin-profile';
 import { AdminCategoryList } from './features/admin/admin-category-list/admin-category-list';
 import { AdminProductList } from './features/admin/admin-product-list/admin-product-list';
 import { ClientCart } from './features/client/cart/cart';
+import { ClientAlerts } from './features/client/client-alerts/client-alerts';
 import { PasswordRecovery } from './features/identity/password-recovery/password-recovery';
 import { GeneralConfigurationPage } from './features/admin/general-configuration/general-configuration';
 import { LegalPage } from './features/legal/legal-page';
@@ -80,6 +81,7 @@ export const routes: Routes = [
   { path: 'client/compras', redirectTo: 'client/orders', pathMatch: 'full' },
   { path: 'client/cart', component: ClientCart, canActivate: [authGuard, roleGuard('CLIENT')] },
   { path: 'client/profile', component: ClientProfile, canActivate: [authGuard, roleGuard('CLIENT')] },
+  { path: 'client/alerts', component: ClientAlerts, canActivate: [authGuard, roleGuard('CLIENT')] },
 
   { path: '**', redirectTo: '' }
 ];
