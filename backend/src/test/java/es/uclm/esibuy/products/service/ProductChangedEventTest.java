@@ -184,8 +184,10 @@ class ProductChangedEventTest {
     }
 
     @Test
-    @DisplayName("HU27-CP06: crear un producto no publica ningún evento")
-    void creatingAProductPublishesNothing() {
+    // Desde la HU28, crear publica ProductCreatedEvent (alertas de productos nuevos), pero sigue
+    // sin publicar un evento de cambio: las alertas de favoritos de la HU27 no deben saltar al crear.
+    @DisplayName("HU27-CP06: crear un producto no publica un evento de cambio")
+    void creatingAProductPublishesNoChangeEvent() {
         stubSeller();
         when(categoryRepository.findAllById(List.of(CATEGORY_ID)))
                 .thenReturn(List.of(new Category(CATEGORY_ID, "Electrónica")));
@@ -194,6 +196,6 @@ class ProductChangedEventTest {
         productService.createProduct(request("19.99", 5, true), SELLER_EMAIL);
 
         verify(productRepository).save(any(Product.class));
-        verify(eventPublisher, never()).publishEvent(any(Object.class));
+        verify(eventPublisher, never()).publishEvent(any(ProductChangedEvent.class));
     }
 }
