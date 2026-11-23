@@ -6,16 +6,19 @@ import { AuthService, AuthenticatedUser } from './core/services/auth.service';
 import { App } from './app';
 import { CartService } from './core/services/cart.service';
 import { AppPlatform } from './core/services/app-platform';
+import { AlertNotifications } from './core/services/alert-notifications';
 
 describe('App', () => {
   let currentUser: WritableSignal<AuthenticatedUser | null>;
   let logout: ReturnType<typeof vi.fn>;
   let cartService: { load: ReturnType<typeof vi.fn>; clear: ReturnType<typeof vi.fn>; itemCount: WritableSignal<number> };
+  let startAlertNotifications: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     currentUser = signal<AuthenticatedUser | null>(null);
     logout = vi.fn().mockReturnValue(of(undefined));
     cartService = { load: vi.fn(), clear: vi.fn(), itemCount: signal(0) };
+    startAlertNotifications = vi.fn();
 
     await TestBed.configureTestingModule({
       imports: [App],
@@ -23,6 +26,7 @@ describe('App', () => {
         provideRouter([]),
         { provide: AuthService, useValue: { currentUser, logout } },
         { provide: CartService, useValue: cartService },
+        { provide: AlertNotifications, useValue: { start: startAlertNotifications } },
       ],
     })
       .compileComponents();
@@ -248,6 +252,7 @@ describe('App', () => {
       TestBed.createComponent(App);
 
       expect(document.documentElement.classList).toContain('native-app');
+      expect(startAlertNotifications).toHaveBeenCalledOnce();
     });
 
     it('no marca el documento en el navegador, también en la web móvil', () => {
@@ -256,6 +261,7 @@ describe('App', () => {
       TestBed.createComponent(App);
 
       expect(document.documentElement.classList).not.toContain('native-app');
+      expect(startAlertNotifications).not.toHaveBeenCalled();
     });
   });
 });
