@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { DestroyRef, Injectable, PLATFORM_ID, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router } from '@angular/router';
-import { Observable, catchError, filter, fromEvent, map, merge, of, switchMap, tap, timer } from 'rxjs';
+import { EMPTY, Observable, Subject, catchError, filter, fromEvent, map, merge, of, switchMap, tap, timer } from 'rxjs';
 import { AuthService } from './auth.service';
 
 /** Motivo de la alerta: bajada de precio o vuelta a estar disponible (HU27) y producto nuevo (HU28). */
@@ -39,9 +39,12 @@ export class AlertsService {
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 
   private readonly unreadCountSignal = signal(0);
+  private readonly countUpdates = new Subject<number>();
   private watching = false;
 
   readonly unreadCount = this.unreadCountSignal.asReadonly();
+  /** Cada cifra que llega del servidor, aunque no cambie (la señal solo avisa de los cambios). */
+  readonly unreadCountUpdates = this.countUpdates.asObservable();
 
   getAlerts(): Observable<CustomerAlert[]> {
     return this.http.get<CustomerAlert[] | null>(API, { withCredentials: true })
@@ -55,7 +58,7 @@ export class AlertsService {
 
   markAllAsRead(): Observable<void> {
     return this.http.patch<void>(`${API}/read-all`, null, { withCredentials: true })
-      .pipe(tap(() => this.unreadCountSignal.set(0)));
+      .pipe(tap(() => this.setUnreadCount(0)));
   }
 
   delete(alertId: string): Observable<void> {
@@ -64,7 +67,7 @@ export class AlertsService {
   }
 
   refreshUnreadCount(): void {
-    this.fetchUnreadCount().subscribe((count) => this.unreadCountSignal.set(count));
+    this.fetchUnreadCount().subscribe((count) => this.setUnreadCount(count));
   }
 
   /** Empieza a seguir el contador. Llamarlo más de una vez no crea más peticiones. */
@@ -82,7 +85,12 @@ export class AlertsService {
         switchMap(() => this.fetchUnreadCount()),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe((count) => this.unreadCountSignal.set(count));
+      .subscribe((count) => this.setUnreadCount(count));
+  }
+
+  private setUnreadCount(count: number): void {
+    this.unreadCountSignal.set(count);
+    this.countUpdates.next(count);
   }
 
   private fetchUnreadCount(): Observable<number> {
@@ -93,7 +101,7 @@ export class AlertsService {
     return this.http.get<{ count?: number | null }>(`${API}/unread-count`, { withCredentials: true }).pipe(
       map((response) => Math.max(0, Number(response?.count ?? 0))),
       // Si falla (sin red, sesión caducada) se queda la última cifra en lugar de borrar el aviso
-      catchError(() => of(this.unreadCountSignal())),
+      catchError(() => EMPTY),
     );
   }
 

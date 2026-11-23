@@ -1,6 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, effect, HostListener, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterOutlet } from '@angular/router';
+import { AlertNotifications } from './core/services/alert-notifications';
 import { AppPlatform } from './core/services/app-platform';
 import { AuthService } from './core/services/auth.service';
 import { CartService } from './core/services/cart.service';
@@ -28,6 +29,8 @@ export class App {
     // Los estilos propios de la app (barra inferior, notch, campos a 16 px) cuelgan de esta clase
     if (inject(AppPlatform).isNativeApp()) {
       document.documentElement.classList.add('native-app');
+      // Aviso en el móvil cuando el cliente tiene alertas nuevas (HU30, T30.6)
+      inject(AlertNotifications).start();
     }
 
     effect(() => {

@@ -156,6 +156,20 @@ describe('AlertsService', () => {
     expect(service.unreadCount()).toBe(3);
   });
 
+  it('avisa de cada cifra que llega del servidor aunque se repita', () => {
+    const received: number[] = [];
+    service.unreadCountUpdates.subscribe((count) => received.push(count));
+
+    service.refreshUnreadCount();
+    httpTesting.expectOne(COUNT_URL).flush({ count: 0 });
+    service.refreshUnreadCount();
+    httpTesting.expectOne(COUNT_URL).flush({ count: 0 });
+    service.refreshUnreadCount();
+    httpTesting.expectOne(COUNT_URL).flush('Error', { status: 500, statusText: 'Server Error' });
+
+    expect(received).toEqual([0, 0]);
+  });
+
   it('con la pestaña oculta no pregunta y al volver a ella sí', () => {
     setVisibility('hidden');
     service.startWatching();
