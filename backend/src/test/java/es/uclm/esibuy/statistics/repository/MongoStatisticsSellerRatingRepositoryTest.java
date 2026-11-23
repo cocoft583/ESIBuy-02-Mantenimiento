@@ -143,6 +143,51 @@ class MongoStatisticsSellerRatingRepositoryTest {
         assertThat(repository.findTopRatedSellers(10).get(0).averageRating()).isCloseTo(4.5, within(0.0001));
     }
 
+    @Test
+    @DisplayName("HU25-CP01: los productos valorados del vendedor son solo los suyos con alguna valoración")
+    void shouldReturnOnlyTheRatedProductsOfTheSeller() {
+        product("p1", "v1", 4.5, 3);
+        product("p2", "v1", 2.0, 1);
+        product("p3", "v1", 5.0, 0);
+        product("p4", "v2", 5.0, 9);
+        mongoTemplate.getCollection("products").insertOne(
+                new Document("_id", "p5").append("sellerId", "v1").append("rating", 5));
+
+        List<ProductRatingRow> products = repository.findSellerRatedProducts("v1");
+
+        assertThat(products).extracting(ProductRatingRow::productId).containsExactlyInAnyOrder("p1", "p2");
+        assertThat(products).allSatisfy(product -> assertThat(product.sellerId()).isEqualTo("v1"));
+    }
+
+    @Test
+    @DisplayName("HU25-CP02: la valoración media del vendedor es la misma que la de su fila en el ranking del administrador")
+    void shouldGiveTheSellerTheSameAverageAsTheAdminRanking() {
+        product("p1", "v1", 5.0, 100);
+        product("p2", "v1", 3.0, 1);
+        product("p3", "v1", 4.0, 0);
+        product("p4", "v2", 1.0, 5);
+
+        SellerRatingRow own = repository.findSellerRating("v1");
+        SellerRatingRow inAdminRanking = repository.findTopRatedSellers(10).stream()
+                .filter(row -> row.sellerId().equals("v1"))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(own).isEqualTo(inAdminRanking);
+        assertThat(own.averageRating()).isCloseTo(4.0, within(0.0001));
+        assertThat(own.ratedProducts()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("HU25-CP03: un vendedor sin productos valorados no tiene valoración media")
+    void shouldReturnNoAverageWhenTheSellerHasNoRatedProducts() {
+        product("p1", "v1", 5.0, 0);
+        product("p2", "v2", 4.0, 2);
+
+        assertThat(repository.findSellerRating("v1")).isNull();
+        assertThat(repository.findSellerRatedProducts("v1")).isEmpty();
+    }
+
     private void product(String id, String sellerId, double rating, int reviewCount) {
         // Un vendedor null se guarda como null explícito; el campo ausente se prueba aparte
         mongoTemplate.getCollection("products").insertOne(new Document("_id", id)

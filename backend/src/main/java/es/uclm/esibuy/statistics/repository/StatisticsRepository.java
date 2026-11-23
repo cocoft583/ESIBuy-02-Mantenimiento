@@ -37,4 +37,16 @@ public interface StatisticsRepository {
      * o null si ninguno la tiene.
      */
     Double findPlatformAverageRating();
+
+    /**
+     * Productos del vendedor con al menos una valoración, sin ordenar. Un producto sin
+     * valoraciones no entra aunque guarde una nota.
+     */
+    List<ProductRatingRow> findSellerRatedProducts(String sellerId);
+
+    /**
+     * Valoración media del vendedor, calculada igual que en {@link #findTopRatedSellers(int)},
+     * o null si no tiene ningún producto valorado.
+     */
+    SellerRatingRow findSellerRating(String sellerId);
 }
