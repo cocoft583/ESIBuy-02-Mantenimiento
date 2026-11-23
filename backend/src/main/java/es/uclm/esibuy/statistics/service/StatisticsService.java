@@ -19,6 +19,7 @@ import es.uclm.esibuy.statistics.dto.ProductSalesDTO;
 import es.uclm.esibuy.statistics.dto.RatingStatisticsDTO;
 import es.uclm.esibuy.statistics.dto.SalesStatisticsDTO;
 import es.uclm.esibuy.statistics.dto.SellerRatingDTO;
+import es.uclm.esibuy.statistics.dto.SellerRatingStatisticsDTO;
 import es.uclm.esibuy.statistics.model.StatisticsScope;
 import es.uclm.esibuy.statistics.repository.ProductRatingRow;
 import es.uclm.esibuy.statistics.repository.ProductSalesRow;
@@ -171,6 +172,54 @@ public class StatisticsService {
                 topSellers,
                 platformAverage == null ? null : round(platformAverage),
                 minimumReviews);
+    }
+
+    /**
+     * Valoraciones del vendedor (HU25): sus 10 productos mejor valorados y sus 10 peor valorados
+     * (entre los que tienen alguna valoración), su valoración media, que es la misma que ve el
+     * administrador, y la de la plataforma para compararla. El {@code sellerId} tiene que salir
+     * siempre de la sesión.
+     */
+    public SellerRatingStatisticsDTO getSellerRatings(String sellerId) {
+        if (sellerId == null || sellerId.isBlank()) {
+            throw new IllegalArgumentException("El identificador del vendedor es obligatorio");
+        }
+
+        List<ProductRatingRow> rows = statisticsRepository.findSellerRatedProducts(sellerId);
+        String sellerName = rows.isEmpty() ? null : resolveSellerName(sellerId);
+        List<ProductRatingDTO> products = rows.stream()
+                .map(row -> new ProductRatingDTO(
+                        row.productId(),
+                        row.productName(),
+                        sellerId,
+                        sellerName,
+                        round(row.rating()),
+                        row.reviewCount()))
+                .toList();
+
+        // Con la misma nota va primero el que tiene más valoraciones, en los dos rankings: es la
+        // nota más fiable. El identificador deja el orden siempre igual (RN-01)
+        Comparator<ProductRatingDTO> mostReviewsThenId = Comparator.comparingInt(ProductRatingDTO::reviewCount)
+                .reversed()
+                .thenComparing(ProductRatingDTO::productId);
+        List<ProductRatingDTO> topRated = products.stream()
+                .sorted(Comparator.comparingDouble(ProductRatingDTO::rating).reversed().thenComparing(mostReviewsThenId))
+                .limit(RANKING_SIZE)
+                .toList();
+        List<ProductRatingDTO> worstRated = products.stream()
+                .sorted(Comparator.comparingDouble(ProductRatingDTO::rating).thenComparing(mostReviewsThenId))
+                .limit(RANKING_SIZE)
+                .toList();
+
+        SellerRatingRow average = statisticsRepository.findSellerRating(sellerId);
+        Double platformAverage = statisticsRepository.findPlatformAverageRating();
+
+        return new SellerRatingStatisticsDTO(
+                topRated,
+                worstRated,
+                average == null ? null : round(average.averageRating()),
+                average == null ? 0 : average.ratedProducts(),
+                platformAverage == null ? null : round(platformAverage));
     }
 
     private String sellerName(String sellerId, Map<String, String> sellerNames) {

@@ -14,6 +14,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.aggregation.AggregationOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Repository;
 
 import es.uclm.esibuy.orders.model.OrderPaymentStatus;
@@ -152,11 +153,46 @@ public class MongoStatisticsRepository implements StatisticsRepository {
 
         return mongoTemplate.aggregate(Aggregation.newAggregation(operations), PRODUCTS_COLLECTION, Document.class)
                 .getMappedResults().stream()
-                .map(document -> new SellerRatingRow(
-                        document.getString(ID),
-                        ((Number) document.get(AVERAGE_RATING)).doubleValue(),
-                        ((Number) document.get(RATED_PRODUCTS)).intValue()))
+                .map(this::toSellerRatingRow)
                 .toList();
+    }
+
+    @Override
+    public List<ProductRatingRow> findSellerRatedProducts(String sellerId) {
+        // Mismo criterio que el resto de rankings: manda el número de valoraciones, no la nota guardada
+        Query query = Query.query(Criteria.where(SELLER_ID).is(sellerId)
+                .and(REVIEW_COUNT).gte(1)
+                .and(RATING).gte(0));
+
+        return mongoTemplate.find(query, Product.class, PRODUCTS_COLLECTION).stream()
+                .map(product -> new ProductRatingRow(
+                        product.getId(),
+                        product.getName(),
+                        product.getSellerId(),
+                        product.getRating(),
+                        product.getReviewCount()))
+                .toList();
+    }
+
+    @Override
+    public SellerRatingRow findSellerRating(String sellerId) {
+        // Se reutiliza el cálculo del ranking del administrador y luego se filtra: así la media
+        // que ve el vendedor es siempre la misma que la de su fila en ese ranking (RN-06)
+        List<AggregationOperation> operations = new ArrayList<>(sellerAverages());
+        operations.add(Aggregation.match(Criteria.where(ID).is(sellerId)));
+
+        Document result = mongoTemplate
+                .aggregate(Aggregation.newAggregation(operations), PRODUCTS_COLLECTION, Document.class)
+                .getUniqueMappedResult();
+
+        return result == null ? null : toSellerRatingRow(result);
+    }
+
+    private SellerRatingRow toSellerRatingRow(Document document) {
+        return new SellerRatingRow(
+                document.getString(ID),
+                ((Number) document.get(AVERAGE_RATING)).doubleValue(),
+                ((Number) document.get(RATED_PRODUCTS)).intValue());
     }
 
     @Override
