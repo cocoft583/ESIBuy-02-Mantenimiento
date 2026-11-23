@@ -53,7 +53,7 @@ describe('ClientCart', () => {
     await TestBed.inject(Router).navigateByUrl('/client/cart');
     fixture.detectChanges();
     const navigationLinks = Array.from(element.querySelectorAll('.app-navigation .navigation-link'));
-    expect(navigationLinks).toHaveLength(4);
+    expect(navigationLinks).toHaveLength(5);
     expect(navigationLinks[2].textContent).toContain('Mis pedidos');
     expect(navigationLinks[3].getAttribute('href')).toBe('/client/cart');
     expect(navigationLinks[3].getAttribute('aria-current')).toBe('page');
