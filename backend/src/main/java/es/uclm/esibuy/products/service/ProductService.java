@@ -43,6 +43,7 @@ import es.uclm.esibuy.products.dto.ProductResponse;
 import es.uclm.esibuy.products.dto.ProductSummaryDTO;
 import es.uclm.esibuy.products.dto.ProductSummaryResponse;
 import es.uclm.esibuy.products.event.ProductChangedEvent;
+import es.uclm.esibuy.products.event.ProductCreatedEvent;
 import es.uclm.esibuy.products.event.ProductSnapshot;
 import es.uclm.esibuy.products.model.Product;
 import es.uclm.esibuy.products.model.ProductDetails;
@@ -110,7 +111,9 @@ private static final String NO_PERMISSIONS_MESSAGE = "No tiene permisos para mod
                 seller.getId()));
         product.setPremiumOnly(Boolean.TRUE.equals(request.getPremiumOnly()));
 
-        return productRepository.save(product);
+        Product saved = productRepository.save(product);
+        publishCreation(saved);
+        return saved;
     }
 
     public Product createProductWithImage(
@@ -155,7 +158,9 @@ private static final String NO_PERMISSIONS_MESSAGE = "No tiene permisos para mod
             }
 
             // Una única escritura del producto.
-            return productRepository.save(product);
+            Product saved = productRepository.save(product);
+            publishCreation(saved);
+            return saved;
 
         } catch (RuntimeException exception) {
             if (product.getId() != null) {
@@ -537,6 +542,11 @@ private static final String NO_PERMISSIONS_MESSAGE = "No tiene permisos para mod
     /** Avisa de que un producto existente se ha guardado, con cómo era antes y cómo es ahora. */
     private void publishChange(ProductSnapshot before, Product saved) {
         eventPublisher.publishEvent(new ProductChangedEvent(before, ProductSnapshot.of(saved)));
+    }
+
+    /** Avisa de que se ha dado de alta un producto nuevo, con sus categorías (HU28). */
+    private void publishCreation(Product saved) {
+        eventPublisher.publishEvent(new ProductCreatedEvent(ProductSnapshot.of(saved), saved.getCategoryIds()));
     }
 
     public List<ProductResponse> getAvailableProducts() {
