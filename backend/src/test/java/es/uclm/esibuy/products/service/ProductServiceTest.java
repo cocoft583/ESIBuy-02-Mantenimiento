@@ -38,7 +38,10 @@ import es.uclm.esibuy.users.model.ClientProfile;
 import es.uclm.esibuy.users.model.CustomerType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import es.uclm.esibuy.products.event.ProductCreatedEvent;
+import es.uclm.esibuy.products.event.ProductSnapshot;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
@@ -961,5 +964,99 @@ class ProductServiceTest {
                 assertTrue(exclusive.forCustomer(true).purchasable());
                 assertTrue(regular.forCustomer(false).purchasable());
                 assertTrue(exclusive.forCustomer(false).premiumOnly());
+        }
+
+        // HU28 (T28.1): al dar de alta un producto se publica ProductCreatedEvent, con la foto del
+        // producto guardado y sus categorías. Al editarlo no (RN-17); decidir a quién avisar es del listener.
+
+        private ProductCreatedEvent publishedCreation() {
+                ArgumentCaptor<ProductCreatedEvent> captor = ArgumentCaptor.forClass(ProductCreatedEvent.class);
+                verify(eventPublisher).publishEvent(captor.capture());
+                return captor.getValue();
+        }
+
+        @Test
+        @DisplayName("HU28: dar de alta un producto publica el evento de producto nuevo con sus categorías")
+        void creatingProductPublishesProductCreatedEvent() {
+                stubSellerWithCategory();
+                when(productRepository.save(any(Product.class))).thenAnswer(invocation -> {
+                        Product saved = invocation.getArgument(0);
+                        saved.setId(PRODUCT_ID);
+                        return saved;
+                });
+                ProductCreateRequest request = validRequest();
+                request.setPremiumOnly(true);
+
+                productService.createProduct(request, SELLER_EMAIL);
+
+                ProductCreatedEvent event = publishedCreation();
+                assertEquals(PRODUCT_ID, event.product().id());
+                assertEquals(PRODUCT_NAME, event.product().name());
+                assertTrue(event.product().available());
+                assertTrue(event.product().premiumOnly());
+                assertEquals(List.of(CATEGORY_ID), event.categoryIds());
+        }
+
+        @Test
+        @DisplayName("HU28: el alta con imagen también publica el evento de producto nuevo")
+        void creatingProductWithImageEndpointPublishesProductCreatedEvent() {
+                stubSellerWithCategory();
+                when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+                Product created = productService.createProductWithImage(validRequest(), null, SELLER_EMAIL);
+
+                ProductCreatedEvent event = publishedCreation();
+                assertEquals(created.getId(), event.product().id());
+                assertEquals(List.of(CATEGORY_ID), event.categoryIds());
+        }
+
+        @Test
+        @DisplayName("HU28: el alta de un producto no disponible también publica el evento, marcado como no disponible")
+        void creatingUnavailableProductPublishesEventMarkedUnavailable() {
+                stubSellerWithCategory();
+                when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+                ProductCreateRequest request = validRequest();
+                request.setAvailable(false);
+
+                productService.createProduct(request, SELLER_EMAIL);
+
+                assertFalse(publishedCreation().product().available());
+        }
+
+        @Test
+        @DisplayName("HU28: si el producto no se llega a guardar, no se publica el evento")
+        void failedCreationDoesNotPublishProductCreatedEvent() {
+                stubSellerWithCategory();
+                when(productRepository.save(any(Product.class))).thenThrow(new IllegalStateException("MongoDB no responde"));
+
+                assertThrows(IllegalStateException.class,
+                                () -> productService.createProduct(validRequest(), SELLER_EMAIL));
+
+                verify(eventPublisher, never()).publishEvent(any(ProductCreatedEvent.class));
+        }
+
+        @Test
+        @DisplayName("HU28: editar un producto no publica el evento de producto nuevo (RN-17)")
+        void updatingProductDoesNotPublishProductCreatedEvent() {
+                stubSellerWithCategory();
+                Product product = ownedProduct(false);
+                when(productRepository.findById(PRODUCT_ID)).thenReturn(Optional.of(product));
+                when(productRepository.save(product)).thenReturn(product);
+
+                productService.updateProduct(PRODUCT_ID, validRequest(), SELLER_EMAIL);
+
+                verify(eventPublisher, never()).publishEvent(any(ProductCreatedEvent.class));
+        }
+
+        @Test
+        @DisplayName("HU28: el evento guarda una copia de las categorías")
+        void productCreatedEventKeepsItsOwnCopyOfTheCategories() {
+                java.util.ArrayList<String> categories = new java.util.ArrayList<>(List.of(CATEGORY_ID));
+                ProductCreatedEvent event = new ProductCreatedEvent(
+                                ProductSnapshot.of(ownedProduct(false)), categories);
+
+                categories.add("otra-categoria");
+
+                assertEquals(List.of(CATEGORY_ID), event.categoryIds());
         }
 }
