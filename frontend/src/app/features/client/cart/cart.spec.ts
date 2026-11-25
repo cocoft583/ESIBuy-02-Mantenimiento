@@ -929,4 +929,91 @@ describe('ClientCart', () => {
       expect(element.querySelector('[role="alert"]')).toBeNull();
     });
   });
+
+  describe('aviso de lo que falta para tramitar el pedido', () => {
+    const address = {
+      id: 'address-1',
+      recipientName: 'Ana',
+      street: 'Calle Mayor 1',
+      additionalInfo: null,
+      postalCode: '13001',
+      city: 'Ciudad Real',
+      province: 'Ciudad Real',
+      phone: '',
+      isDefault: true,
+    };
+    const paymentMethod = {
+      id: 'payment-1',
+      type: 'CARD',
+      cardBrand: 'VISA',
+      lastFourDigits: '1234',
+      defaultMethod: true,
+    };
+
+    async function openCheckout(direcciones: unknown[], metodosPago: unknown[]): Promise<string> {
+      const items = [{
+        productoId: 'product-1',
+        nombre: 'Auriculares',
+        precioUnitario: 19.99,
+        cantidad: 1,
+        subtotal: 19.99,
+      }];
+      const summary = {
+        direcciones,
+        metodosPago,
+        items,
+        subtotal: 19.99,
+        ivaPorcentaje: 21,
+        ivaImporte: 3.47,
+        gastosEnvio: 0,
+        precioTotal: 19.99,
+      };
+
+      await TestBed.configureTestingModule({
+        imports: [ClientCart],
+        providers: [
+          provideRouter([]),
+          {
+            provide: CartService,
+            useValue: {
+              cart: signal({ id: 'cart-1', clienteId: 'client-1', items, precioTotal: 19.99 }),
+              loading: signal(false),
+              loadError: signal(null),
+              itemCount: () => 1,
+            },
+          },
+          {
+            provide: PedidoService,
+            useValue: { obtenerCheckoutResumen: vi.fn(() => of(summary)), crearPedido: vi.fn() },
+          },
+        ],
+      }).compileComponents();
+
+      const fixture = TestBed.createComponent(ClientCart);
+      fixture.detectChanges();
+      fixture.componentInstance.setSelectedProductIds(['product-1']);
+      fixture.detectChanges();
+      (fixture.nativeElement.querySelector('.checkout-action') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      return (fixture.nativeElement as HTMLElement).querySelector('.checkout-notice')?.textContent?.trim() ?? '';
+    }
+
+    it('si solo falta el método de pago, pide solo el método de pago', async () => {
+      const notice = await openCheckout([address], []);
+
+      expect(notice).toBe('Guarda un método de pago en tu perfil para continuar.');
+    });
+
+    it('si solo falta la dirección, pide solo la dirección de envío', async () => {
+      const notice = await openCheckout([], [paymentMethod]);
+
+      expect(notice).toBe('Guarda una dirección de envío en tu perfil para continuar.');
+    });
+
+    it('si faltan los dos, pide la dirección y el método de pago', async () => {
+      const notice = await openCheckout([], []);
+
+      expect(notice).toBe('Guarda una dirección de envío y un método de pago en tu perfil para continuar.');
+    });
+  });
 });
