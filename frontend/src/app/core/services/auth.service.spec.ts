@@ -12,6 +12,7 @@ import {
   AuthenticatedUser,
   CreateAdminRequest,
 } from './auth.service';
+import { AppPlatform } from './app-platform';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -176,5 +177,48 @@ describe('AuthService', () => {
       role: 'ADMIN',
       active: true,
     });
+  });
+});
+
+describe('AuthService · recordar sesión en la app (HU30, T30.10)', () => {
+  let service: AuthService;
+  let httpTesting: HttpTestingController;
+  let nativeApp: boolean;
+
+  function setUp(): void {
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: AppPlatform, useValue: { isNativeApp: () => nativeApp } },
+      ],
+    });
+    service = TestBed.inject(AuthService);
+    httpTesting = TestBed.inject(HttpTestingController);
+  }
+
+  function loginBody(): unknown {
+    service.login({ email: 'client@example.com', password: 'secreta' }).subscribe();
+    const request = httpTesting.expectOne('/api/users/login');
+    const body = request.request.body;
+    request.flush({ requires2fa: true });
+    return body;
+  }
+
+  afterEach(() => httpTesting.verify());
+  afterEach(() => TestBed.resetTestingModule());
+
+  it('en la app pide al servidor que recuerde la sesión', () => {
+    nativeApp = true;
+    setUp();
+
+    expect(loginBody()).toEqual({ email: 'client@example.com', password: 'secreta', rememberMe: true });
+  });
+
+  it('en el navegador no pide recordar la sesión', () => {
+    nativeApp = false;
+    setUp();
+
+    expect(loginBody()).toEqual({ email: 'client@example.com', password: 'secreta' });
   });
 });
