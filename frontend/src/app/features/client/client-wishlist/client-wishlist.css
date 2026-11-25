@@ -921,6 +921,17 @@
   border-color: #ff858d;
 }
 
+/* En el móvil, Editar y Borrar solo con icono para que la pestaña activa quepa sin scroll */
+@media (max-width: 520px) {
+  .tab-action-btn {
+    padding: 6px;
+  }
+
+  .tab-action-btn span {
+    display: none;
+  }
+}
+
 .create-wishlist-btn {
   display: inline-flex;
   align-items: center;
