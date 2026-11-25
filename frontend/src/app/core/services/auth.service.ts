@@ -1,6 +1,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { computed, Injectable, signal } from '@angular/core';
+import { computed, inject, Injectable, signal } from '@angular/core';
 import { Observable, catchError, of, tap, timeout } from 'rxjs';
+import { AppPlatform } from './app-platform';
 
 export type UserRole = 'CLIENT' | 'SELLER' | 'ADMIN';
 export type CustomerType = 'STANDARD' | 'PREMIUM';
@@ -113,6 +114,7 @@ export class AuthService {
 
   readonly currentUser = this.currentUserSignal.asReadonly();
   readonly isAuthenticated = computed(() => this.currentUserSignal() !== null);
+  private readonly platform = inject(AppPlatform);
 
   constructor(private readonly http: HttpClient) { }
 
@@ -147,10 +149,12 @@ export class AuthService {
     password: string;
     totpCode?: string;
   }): Observable<LoginResponse> {
+    // En la app el servidor recuerda la sesión aunque se cierre la app (HU30, T30.10)
+    const body = this.platform.isNativeApp() ? { ...data, rememberMe: true } : data;
     return this.http
       .post<LoginResponse>(
         `${this.apiUrl}/login`,
-        data,
+        body,
         { withCredentials: true },
       )
       .pipe(
