@@ -8,6 +8,7 @@ import es.uclm.esibuy.security.AuthenticatedUserPrincipal;
 import es.uclm.esibuy.security.config.SecurityConfig;
 import es.uclm.esibuy.security.service.EmailOtpService;
 import es.uclm.esibuy.security.service.LoginAttemptService;
+import es.uclm.esibuy.security.service.RememberMeService;
 import es.uclm.esibuy.security.service.SessionAuthenticationService;
 import es.uclm.esibuy.security.service.TwoFactorAuthenticationService;
 import es.uclm.esibuy.users.dto.AdminCreateRequest;
@@ -81,6 +82,9 @@ class UserControllerTest {
 
         @Autowired
         private MockMvc mockMvc;
+
+        @MockBean
+        private RememberMeService rememberMeService;
 
         @MockBean
         private UserService userService;

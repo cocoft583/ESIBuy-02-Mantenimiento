@@ -14,6 +14,7 @@ import es.uclm.esibuy.security.AuthenticatedUserPrincipal;
 import es.uclm.esibuy.security.config.SecurityConfig;
 import es.uclm.esibuy.security.service.EncryptionService;
 import es.uclm.esibuy.security.service.LoginAttemptService;
+import es.uclm.esibuy.security.service.RememberMeService;
 import es.uclm.esibuy.security.service.SessionAuthenticationService;
 import es.uclm.esibuy.security.service.TotpService;
 import es.uclm.esibuy.security.service.TwoFactorAuthenticationService;
@@ -50,6 +51,9 @@ class UserProfileControllerTest {
 
         @Autowired
         private MockMvc mockMvc;
+
+        @MockBean
+        private RememberMeService rememberMeService;
 
         @MockBean
         private UserService userService;

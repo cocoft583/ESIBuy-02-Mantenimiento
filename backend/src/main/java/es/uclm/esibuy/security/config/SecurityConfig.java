@@ -34,8 +34,11 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import es.uclm.esibuy.common.filter.CorrelationIdFilter;
+import es.uclm.esibuy.security.filter.RememberMeFilter;
 import es.uclm.esibuy.security.filter.SessionRevocationFilter;
 import es.uclm.esibuy.security.password.PepperedPasswordEncoder;
+import es.uclm.esibuy.security.service.RememberMeService;
+import es.uclm.esibuy.security.service.SessionAuthenticationService;
 import es.uclm.esibuy.users.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -78,8 +81,17 @@ public class SecurityConfig {
                         HttpSecurity http,
                         SecurityContextRepository securityContextRepository,
                         CookieCsrfTokenRepository csrfTokenRepository,
-                        ObjectProvider<UserRepository> userRepository) {
+                        ObjectProvider<UserRepository> userRepository,
+                        ObjectProvider<RememberMeService> rememberMeService,
+                        ObjectProvider<SessionAuthenticationService> sessionAuthenticationService) {
                 try {
+                        // «Recordar sesión» de la app (HU30, T30.10): antes que la revocación, para que
+                        // una sesión recuperada pase también por ella
+                        rememberMeService.ifAvailable(remember -> sessionAuthenticationService.ifAvailable(
+                                        sessions -> http.addFilterBefore(
+                                                        new RememberMeFilter(remember, sessions),
+                                                        AuthorizationFilter.class)));
+
                         // En los @WebMvcTest no hay repositorios de Mongo: ahí el filtro no se registra
                         userRepository.ifAvailable(repository -> http.addFilterBefore(
                                         new SessionRevocationFilter(repository), AuthorizationFilter.class));
