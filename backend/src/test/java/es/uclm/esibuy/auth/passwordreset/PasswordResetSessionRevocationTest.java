@@ -38,6 +38,7 @@ import es.uclm.esibuy.security.password.CompromisedPasswordService;
 import es.uclm.esibuy.security.service.EmailOtpService;
 import es.uclm.esibuy.security.service.EncryptionService;
 import es.uclm.esibuy.security.service.LoginAttemptService;
+import es.uclm.esibuy.security.service.RememberMeService;
 import es.uclm.esibuy.security.service.SessionAuthenticationService;
 import es.uclm.esibuy.security.service.TotpService;
 import es.uclm.esibuy.security.service.TwoFactorAuthenticationService;
@@ -57,6 +58,9 @@ class PasswordResetSessionRevocationTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @MockBean
+    private RememberMeService rememberMeService;
 
     @MockBean
     private UserService userService;

@@ -16,6 +16,9 @@ public class LoginRequest {
 
     private String totpCode;
 
+    /** La app de cliente pide recordar la sesión al cerrarla (HU30, T30.10). */
+    private boolean rememberMe;
+
     public String getEmail() {
         return email;
     }
@@ -38,5 +41,13 @@ public class LoginRequest {
 
     public void setTotpCode(String totpCode) {
         this.totpCode = totpCode;
+    }
+
+    public boolean isRememberMe() {
+        return rememberMe;
+    }
+
+    public void setRememberMe(boolean rememberMe) {
+        this.rememberMe = rememberMe;
     }
 }

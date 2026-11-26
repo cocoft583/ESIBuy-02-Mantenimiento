@@ -22,6 +22,7 @@ import es.uclm.esibuy.common.exception.TooManyRequestsException;
 import es.uclm.esibuy.security.AuthenticatedUserPrincipal;
 import es.uclm.esibuy.security.service.EmailOtpService;
 import es.uclm.esibuy.security.service.LoginAttemptService;
+import es.uclm.esibuy.security.service.RememberMeService;
 import es.uclm.esibuy.security.service.SessionAuthenticationService;
 import es.uclm.esibuy.security.service.TwoFactorAuthenticationService;
 import es.uclm.esibuy.users.dto.AdminCreateRequest;
@@ -57,6 +58,7 @@ public class UserController {
     private final TwoFactorAuthenticationService twoFactorAuthenticationService;
     private static final String PENDING_OTP_USER_ID = "PENDING_OTP_USER_ID";
     private final EmailOtpService emailOtpService;
+    private final RememberMeService rememberMeService;
     private final long emailOtpValiditySeconds;
 
     public UserController(
@@ -65,12 +67,14 @@ public class UserController {
             SessionAuthenticationService sessionAuthenticationService,
             TwoFactorAuthenticationService twoFactorAuthenticationService,
             EmailOtpService emailOtpService,
+            RememberMeService rememberMeService,
             @Value("${app.security.email-otp.validity-seconds}") long emailOtpValiditySeconds) {
         this.userService = userService;
         this.loginAttemptService = loginAttemptService;
         this.sessionAuthenticationService = sessionAuthenticationService;
         this.twoFactorAuthenticationService = twoFactorAuthenticationService;
         this.emailOtpService = emailOtpService;
+        this.rememberMeService = rememberMeService;
         this.emailOtpValiditySeconds = emailOtpValiditySeconds;
     }
 
@@ -156,6 +160,11 @@ public class UserController {
         sessionAuthenticationService.authenticate(
                 user, servletRequest, servletResponse);
 
+        // Solo la app de cliente pide recordar la sesión (HU30, T30.10)
+        if (request.isRememberMe() && user.getRole() == UserRole.CLIENT) {
+            rememberMeService.issue(user, servletResponse);
+        }
+
         return ResponseEntity.ok(buildUserResponse(user));
     }
 
@@ -201,7 +210,8 @@ public class UserController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(HttpServletRequest request) {
+    public ResponseEntity<Void> logout(HttpServletRequest request, HttpServletResponse response) {
+        rememberMeService.forget(request, response);
         HttpSession session = request.getSession(false);
         if (session != null) {
             session.invalidate();
