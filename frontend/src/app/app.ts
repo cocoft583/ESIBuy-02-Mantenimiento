@@ -2,6 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, effect, HostListener, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterOutlet } from '@angular/router';
 import { AlertNotifications } from './core/services/alert-notifications';
+import { BackButton } from './core/services/back-button';
 import { AppPlatform } from './core/services/app-platform';
 import { AuthService } from './core/services/auth.service';
 import { CartService } from './core/services/cart.service';
@@ -31,6 +32,8 @@ export class App {
       document.documentElement.classList.add('native-app');
       // Aviso en el móvil cuando el cliente tiene alertas nuevas (HU30, T30.6)
       inject(AlertNotifications).start();
+      // Botón atrás de Android: vuelve a la página anterior en lugar de cerrar la app
+      inject(BackButton).start();
     }
 
     effect(() => {
